@@ -362,7 +362,12 @@ let H=ls.get(K.hist,[]);            // historial local (espejo del servidor + pe
 let tomb=ls.get(K.tomb,[]);         // IDs borrados pendientes de confirmar
 let selId=null;
 const saveDraft=()=>ls.set(K.draft,S);
-const saveH=()=>{ls.set(K.hist,H);ls.set(K.tomb,tomb)};
+// Guarda el historial local; si el navegador se queda sin espacio, conserva al menos lo pendiente de subir
+const saveH=()=>{
+  try{localStorage.setItem(K.hist,JSON.stringify(H))}
+  catch(e){try{localStorage.setItem(K.hist,JSON.stringify(H.filter(p=>!p.sync)))}catch(e2){}}
+  ls.set(K.tomb,tomb);
+};
 const API=()=>ls.get(K.api,'')||API_DEFAULT;
 
 /* =====================================================================
@@ -727,12 +732,17 @@ function delProgram(id){
 /* =====================================================================
    SINCRONIZACIÓN (JSONP para leer, POST text/plain para escribir)
    ===================================================================== */
-let busy=false, lastSync=0, lastErr='';
+let busy=false, again=false, lastSync=0, lastErr='';
+const tries={};          // intentos de subida por ID (evita reintentos infinitos)
+const waiting=new Set(); // programas recién guardados esperando confirmación de la nube
+const MAX_TRIES=4;
 function setSync(state,txt){$('syncDot').className='dot '+state;$('syncTxt').textContent=txt}
 function syncLabel(){
   if(!API()){setSync('local','Solo en este equipo');return}
   const pend=H.filter(p=>!p.sync).length+tomb.length+(ls.get(K.catDirty,false)?1:0);
   if(lastErr){setSync('err','Sin conexión'+(pend?` · ${pend} pendientes`:''));return}
+  const stuck=H.filter(p=>!p.sync&&(tries[p.id]||0)>=MAX_TRIES).length;
+  if(stuck){setSync('err',`${stuck} sin poder subir`);return}
   setSync(pend?'local':'ok',pend?`${pend} pendientes`:'Sincronizado'+(lastSync?' '+new Date(lastSync).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}):''));
 }
 function jsonp(params){
@@ -756,7 +766,7 @@ let refreshT=null;
 const refreshSoon=()=>{clearTimeout(refreshT);refreshT=setTimeout(refresh,2500)};
 async function pushProgram(p){
   syncLabel(); if(!API())return;
-  const {sync,...clean}=p;
+  const {sync,...clean}=p; waiting.add(p.id); tries[p.id]=(tries[p.id]||0)+1;
   if(await post({action:'saveProgram',program:clean}))refreshSoon();
 }
 async function pushDelete(id){syncLabel(); if(API()&&await post({action:'deleteProgram',id}))refreshSoon()}
@@ -766,7 +776,7 @@ function schedulePushCatalog(){syncLabel();if(!API())return;clearTimeout(catT);c
 
 async function refresh(){
   if(!API()){syncLabel();return}
-  if(busy)return; busy=true; setSync('busy','Sincronizando…');
+  if(busy){again=true;return} busy=true; setSync('busy','Sincronizando…');
   try{
     const r=await jsonp({action:'getAll'});
     if(!r||!r.ok)throw new Error(r&&r.error||'Respuesta inválida');
@@ -775,26 +785,41 @@ async function refresh(){
     const dirty=ls.get(K.catDirty,false);
     if(Array.isArray(r.catalogo)&&r.catalogo.length&&!dirty){
       const changed=JSON.stringify(r.catalogo)!==JSON.stringify(S.catalogo.map(mo=>({id:mo.id,sku:mo.sku,modelo:mo.modelo,tramos:parseFloat(mo.tramos)||0,cortes:mo.cortes.map(ct=>({id:ct.id,parte:ct.parte,tipo:tipoDe(ct),teo:ct.teo,real:ct.real,pzs:parseFloat(ct.pzs)||0}))})));
-      if(changed){S.catalogo=r.catalogo;saveDraft();if(!document.activeElement||!document.activeElement.closest('#cat')){renderCat()}renderProg();renderResults()}
+      if(changed){
+        // Conserva las cantidades capturadas aunque cambien los IDs de los modelos
+        const key=mo=>mo.sku+'|'+mo.modelo, oldQ={};
+        S.catalogo.forEach(mo=>{if(S.qty[mo.id])oldQ[key(mo)]=S.qty[mo.id]});
+        S.catalogo=r.catalogo; const nq={};
+        S.catalogo.forEach(mo=>{const v=S.qty[mo.id]||oldQ[key(mo)];if(v)nq[mo.id]=v}); S.qty=nq;
+        saveDraft();if(!document.activeElement||!document.activeElement.closest('#cat')){renderCat()}renderProg();renderResults()}
     } else if((!r.catalogo||!r.catalogo.length)||dirty){ schedulePushCatalog(); }
     // --- programas ---
     const srv=new Map((r.programas||[]).map(p=>[p.id,p]));
     tomb=tomb.filter(id=>srv.has(id));            // borrado confirmado → se quita de la lista
-    tomb.forEach(id=>post({action:'deleteProgram',id}));
+    tomb.forEach(id=>{tries['del'+id]=(tries['del'+id]||0)+1;post({action:'deleteProgram',id})});
     const merged=[]; const repush=[];
     for(const [id,sp] of srv){
       if(tomb.includes(id))continue;
       const lp=H.find(x=>x.id===id);
       if(lp&&!lp.sync&&lp.actualizado>sp.actualizado){merged.push(lp);repush.push(lp)}
-      else merged.push({...sp,sync:true});
+      else{merged.push({...sp,sync:true});delete tries[id];
+        if(waiting.has(id)){waiting.delete(id);toast('☁️ Programa '+sp.folio+' guardado en la nube')}}
     }
-    for(const lp of H)if(!srv.has(lp.id)){merged.push(lp);if(!lp.sync)repush.push(lp)}
+    // Solo se conservan los locales que nunca se han subido; si ya estaba sincronizado y el servidor
+    // no lo tiene, significa que otro equipo lo borró.
+    for(const lp of H)if(!srv.has(lp.id)&&!lp.sync){merged.push(lp);repush.push(lp)}
+    if(selId&&!merged.some(p=>p.id===selId)){selId=null;$('secDet').hidden=true}
     H=merged.filter(p=>p.data); saveH();
-    repush.forEach(p=>{const {sync,...c}=p;post({action:'saveProgram',program:c})});
-    if(repush.length||tomb.length)refreshSoon();
+    // Reintenta lo pendiente con límite; después de MAX_TRIES solo se reintenta en el ciclo normal de 60 s
+    let retrySoon=false;
+    repush.forEach(p=>{const n=tries[p.id]||0; if(n<MAX_TRIES)retrySoon=true;
+      tries[p.id]=n+1; const {sync,...c}=p; post({action:'saveProgram',program:c})});
+    if(tomb.some(id=>(tries['del'+id]||0)<MAX_TRIES))retrySoon=true;
+    if(retrySoon)refreshSoon();
+    else if(repush.length||tomb.length){clearTimeout(refreshT);refreshT=setTimeout(refresh,20000)} // reintento lento
     renderHist();renderEditBanner();
   }catch(e){lastErr=e.message}
-  finally{busy=false;syncLabel();renderConn()}
+  finally{busy=false;syncLabel();renderConn();if(again){again=false;refreshSoon()}}
 }
 
 /* ---------- pestaña conexión ---------- */
@@ -809,7 +834,10 @@ $('btnSaveUrl').onclick=()=>{const v=$('apiUrl').value.trim();
   ls.set(K.api,v);lastErr='';toast(v?'URL guardada':'Modo local');refresh()};
 $('btnTest').onclick=async()=>{if(!API()){toast('Primero guarda la URL');return}
   try{const r=await jsonp({action:'ping'});toast(r.ok?'✅ Conexión correcta':'⛔ '+r.error)}catch(e){toast('⛔ '+e.message)}};
-$('btnSyncNow').onclick=refresh; $('syncBtn').onclick=refresh;
+// Sincronización manual o al recuperar internet: reinicia los contadores para reintentar de inmediato
+function manualRefresh(){for(const k in tries)delete tries[k];lastErr='';return refresh()}
+$('btnSyncNow').onclick=manualRefresh; $('syncBtn').onclick=manualRefresh;
+window.addEventListener('online',manualRefresh);
 
 /* ---------- pestañas ---------- */
 function switchTab(id){
@@ -825,7 +853,7 @@ fillParams();renderCat();renderProg();renderResults();renderHist();syncLabel();
 refresh();
 setInterval(()=>{if(document.visibilityState==='visible')refresh()},POLL_MS);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh()});
-window.__jq={get S(){return S},get H(){return H},refresh,compute};
+window.__jq={get S(){return S},get H(){return H},refresh:manualRefresh,compute};
 })();
 </script>
 </body>
