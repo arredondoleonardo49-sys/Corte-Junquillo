@@ -88,7 +88,28 @@ details.sec>summary::after{content:"▸";margin-left:auto;color:var(--muted);tra
 details.sec[open]>summary::after{transform:rotate(90deg)}
 details.sec>summary small{font:400 13px "Barlow",sans-serif;color:var(--muted)}
 .body{padding:12px 14px}
-.scroll{overflow-x:auto}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* tablas con ancho mínimo: en pantallas chicas se desplazan en lugar de encimarse */
+.scroll>table{min-width:680px}
+.scroll>table.cat{min-width:980px}
+td.qtyc{width:110px;min-width:110px}
+input.qty{width:90px;display:block;margin:0 auto}
+.teo-fixed{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font:600 16px "Barlow Condensed","Arial Narrow",sans-serif;white-space:nowrap}
+.teo-fixed::before{content:"🔒";font-size:11px;opacity:.7}
+input.real{background:var(--green-soft);border-color:var(--green);font-weight:700;width:90px}
+input.real::placeholder{color:var(--green);opacity:.55;font-weight:400;font-style:italic;font-family:"Barlow",sans-serif;font-size:13px}
+button.same{padding:2px 8px;font-size:12px;border-color:var(--green);color:var(--green);background:var(--panel);white-space:nowrap}
+/* vista previa */
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:8px;margin-bottom:12px}
+.chk{display:flex;gap:10px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:14px}
+.chk .i{font-size:18px;line-height:1.2}
+.chk b{display:block}
+.chk.ok{border-left:4px solid var(--green)}.chk.warn{border-left:4px solid var(--warn)}.chk.err{border-left:4px solid var(--err)}
+.verdict{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;margin-bottom:12px;font:700 18px "Barlow Condensed","Arial Narrow",sans-serif}
+.verdict.ok{background:var(--green-soft);color:var(--green)}.verdict.warn{background:var(--warn-soft);color:var(--warn)}.verdict.err{background:var(--err-soft);color:var(--err)}
+.pm tr.mh td{background:var(--steel-soft);border-top:2px solid var(--ink);font-weight:600}
+.pm tr.t-C td:first-child{box-shadow:inset 4px 0 0 var(--cub)}.pm tr.t-F td:first-child{box-shadow:inset 4px 0 0 var(--frt)}
+.pm tr.t-C td{background:color-mix(in srgb,var(--cub-soft) 55%,transparent)}.pm tr.t-F td{background:color-mix(in srgb,var(--frt-soft) 55%,transparent)}
 
 table{border-collapse:collapse;width:100%;font-size:14px}
 th{background:var(--steel);color:#fff;font-weight:600;text-align:left;padding:6px 8px;white-space:nowrap}
@@ -177,7 +198,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px}
 @media print{
   body{background:#fff;color:#000;font-size:12px}
   header.top,nav.tabs,.params,.btns,.noprint,footer,.editing,.toast{display:none!important}
-  body.p-prog .tab:not(#tabProg),body.p-det .tab:not(#tabHist){display:none!important}
+  body.p-prog .tab:not(#tabProg),body.p-det .tab:not(#tabHist),body.p-prev .tab:not(#tabPrev){display:none!important}
   body.p-det #tabHist>*:not(#secDet){display:none!important}
   body.p-prog #secCat{display:none!important}
   .printhead{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border:1px solid #000;padding:6px;margin-bottom:8px}
@@ -205,6 +226,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px}
 
 <nav class="tabs" role="tablist">
   <button role="tab" data-tab="tabProg" aria-selected="true">🪚 Programa</button>
+  <button role="tab" data-tab="tabPrev" aria-selected="false">👁️ Vista previa <span class="badge" id="prevBadge">—</span></button>
   <button role="tab" data-tab="tabHist" aria-selected="false">🗂️ Historial <span class="badge" id="histCount">0</span></button>
   <button role="tab" data-tab="tabCat" aria-selected="false">📐 Medidas</button>
   <button role="tab" data-tab="tabConf" aria-selected="false">⚙️ Conexión</button>
@@ -225,6 +247,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px}
   </section>
 
   <div class="btns" style="margin-bottom:12px">
+    <button class="primary" id="btnPreview">👁️ Vista previa</button>
     <button class="save" id="btnSave">💾 Guardar programa</button>
     <button class="primary" id="btnPrint">🖨️ Imprimir hoja de corte</button>
     <button id="btnCopy">📋 Copiar para Excel</button>
@@ -245,6 +268,26 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px}
     <summary>🪚 Cómo cortar cada tramo <small>acomodo optimizado</small></summary>
     <div class="body" id="patrones"></div>
   </details>
+</section>
+
+<!-- ======================= VISTA PREVIA ======================= -->
+<section class="tab" id="tabPrev" hidden>
+  <div class="printhead" id="prevHead"></div>
+  <div id="prevVerdict"></div>
+  <div class="checks noprint" id="prevCheck"></div>
+  <div class="btns noprint" style="margin-bottom:12px">
+    <button class="save" id="prevSave">💾 Confirmar y guardar</button>
+    <button class="primary" id="prevPrint">🖨️ Imprimir</button>
+    <button id="prevBack">✏️ Volver al programa</button>
+  </div>
+  <details class="sec noprint" open id="secPrevMed">
+    <summary>📐 Medidas de este programa <small>la teórica está fija; captura la real en la celda verde</small></summary>
+    <div class="body scroll" id="prevMed"></div>
+  </details>
+  <div class="kpis" id="prevKpis"></div>
+  <details class="sec" open><summary>🪑 Muebles del programa</summary><div class="body scroll" id="prevMueb"></div></details>
+  <details class="sec" open><summary>📋 Lista de corte <small>separada por cubierta y frontal</small></summary><div class="body" id="prevLista"></div></details>
+  <details class="sec" open><summary>🪚 Cómo cortar cada tramo</summary><div class="body" id="prevPat"></div></details>
 </section>
 
 <!-- ======================= HISTORIAL ======================= -->
@@ -485,7 +528,7 @@ function renderProg(){
   let h='<table><thead><tr><th class="c">N.º de muebles</th><th>SKU</th><th>Modelo</th><th class="r">Tramos por mueble</th><th class="r">Tramos estándar</th><th class="c">Medidas</th></tr></thead><tbody>';
   for(const mo of S.catalogo){
     const nr=mo.cortes.filter(ct=>medida(ct).real).length, nt=mo.cortes.length;
-    h+=`<tr class="grp"><td class="c" style="width:120px"><input class="qty" type="number" min="0" step="1" data-q="${mo.id}" value="${S.qty[mo.id]||''}" placeholder="0" aria-label="Muebles ${esc(mo.modelo)}"></td>
+    h+=`<tr class="grp"><td class="c qtyc"><input class="qty" type="number" min="0" step="1" data-q="${mo.id}" value="${S.qty[mo.id]||''}" placeholder="0" aria-label="Muebles ${esc(mo.modelo)}"></td>
     <td class="sku">${esc(mo.sku)}</td><td class="modelo">${esc(mo.modelo)}</td>
     <td class="r num">${fmt(mo.tramos,3)}</td><td class="r num" data-std="${mo.id}">—</td>
     <td class="c">${nt&&nr===nt?'<span class="tag ok">✓ reales</span>':`<span class="tag bad">◐ ${nr}/${nt} rectificadas</span>`}</td></tr>`;
@@ -508,6 +551,7 @@ function renderResults(){
   $('lista').innerHTML=R.lista.length?al+htmlLista(R.lista):al+'<div class="empty">Captura cantidades en el programa de muebles para generar la lista de corte.</div>';
   $('patrones').innerHTML=R.patrones.length?htmlPatrones(snapshot(R)):'<div class="empty">Aquí aparecerá cómo cortar cada tramo en cuanto haya piezas en la lista.</div>';
   renderEditBanner();
+  renderPreviewOut();
 }
 
 function renderEditBanner(){
@@ -526,7 +570,8 @@ function nextFolio(fecha){
   return pre+String((n.length?Math.max(...n):0)+1).padStart(2,'0');
 }
 
-$('btnSave').onclick=()=>{
+$('btnSave').onclick=()=>doSave();
+function doSave(){
   const R=compute();
   if(!R.kpis.totalPz){toast('Captura al menos un mueble para guardar');return}
   if(R.largas.length){toast('Corrige las piezas más largas que el tramo');return}
@@ -542,7 +587,8 @@ $('btnSave').onclick=()=>{
   saveH();saveDraft();fillParams();renderHist();renderResults();
   toast('💾 Programa '+p.folio+' guardado');
   pushProgram(p);
-};
+  if(!$('tabPrev').hidden)renderPreview();
+}
 
 $('btnNew').onclick=()=>{
   if(Object.keys(S.qty).length&&!S.editId&&!confirm('Hay cantidades sin guardar. ¿Empezar un programa nuevo?'))return;
@@ -570,12 +616,86 @@ $('btnPrint').onclick=()=>{
 window.addEventListener('afterprint',()=>document.body.className='');
 
 /* =====================================================================
+   PESTAÑA VISTA PREVIA
+   ===================================================================== */
+function progModels(){return S.catalogo.filter(mo=>(parseInt(S.qty[mo.id])||0)>0)}
+function renderPreview(){renderPreviewMed();renderPreviewOut()}
+
+// Tabla de medidas: se reconstruye solo al abrir la pestaña para no perder el foco al capturar
+function renderPreviewMed(){
+  const L=progModels();
+  if(!L.length){$('prevMed').innerHTML='<div class="empty">No hay muebles capturados en el programa.</div>';return}
+  let h='<table class="pm"><thead><tr><th>Modelo</th><th>Tipo</th><th>Parte</th><th class="r">Teórica (cm)</th><th class="r">Real (cm)</th><th class="r">Diferencia</th><th class="r">Pzs × mueble</th><th class="r">Pzs totales</th></tr></thead><tbody>';
+  for(const mo of L){
+    const q=parseInt(S.qty[mo.id])||0;
+    h+=`<tr class="mh"><td colspan="8">${esc(mo.sku)} · ${esc(mo.modelo)} <span class="muted" style="font-weight:400">× ${q} muebles</span></td></tr>`;
+    for(const ct of mo.cortes){
+      const tp=tipoDe(ct);
+      h+=`<tr class="t-${tp}"><td></td><td><span class="tipo ${tp}"><span class="ico ${tp}"></span>${TIPO[tp]}</span></td><td>${esc(ct.parte)}</td>
+        <td class="r">${parseFloat(ct.teo)>0?`<span class="teo-fixed">${fmt(ct.teo)}</span>`:'<span class="tag bad">sin teórica</span>'}</td>
+        <td class="r"><input class="real" type="number" step="any" min="0" data-pm="${mo.id}" data-pc="${ct.id}" value="${ct.real}" placeholder="capturar" aria-label="Medida real ${esc(mo.modelo)} ${esc(ct.parte)}"></td>
+        <td class="r num" data-pdiff="${ct.id}">${pdiff(ct)}</td><td class="r num">${fmt(ct.pzs,0)}</td><td class="r num"><b>${fmt((parseFloat(ct.pzs)||0)*q,0)}</b></td></tr>`;
+    }
+  }
+  $('prevMed').innerHTML=h+'</tbody></table>';
+  // "✓ = teórica": la medida real medida coincide con la teórica
+  $('prevMed').addEventListener('click',e=>{const b=e.target.closest('[data-same]');if(!b)return;
+    const inp=$('prevMed').querySelector(`input[data-pc="${b.dataset.same}"]`);
+    const mo=S.catalogo.find(x=>x.id===inp.dataset.pm),ct=mo.cortes.find(x=>x.id===inp.dataset.pc);
+    inp.value=ct.teo;inp.dispatchEvent(new Event('change'))});
+  $('prevMed').querySelectorAll('input[data-pc]').forEach(el=>el.addEventListener('change',()=>{
+    const mo=S.catalogo.find(x=>x.id===el.dataset.pm), ct=mo&&mo.cortes.find(x=>x.id===el.dataset.pc); if(!ct)return;
+    ct.real=el.value===''?'':parseFloat(el.value);
+    const cell=document.querySelector(`[data-pdiff="${ct.id}"]`); if(cell)cell.innerHTML=pdiff(ct);
+    saveDraft();ls.set(K.catDirty,true);renderCat();renderProg();renderResults();schedulePushCatalog();
+  }));
+}
+
+function pdiff(ct){return medida(ct).real||!(parseFloat(ct.teo)>0)?diff(ct):`<button class="same" data-same="${ct.id}" title="La medida real es igual a la teórica">✓ = teórica</button>`}
+// Resultado, verificación y hoja de corte (se actualiza con cada cambio)
+function renderPreviewOut(){
+  const R=lastR||compute(), k=R.kpis, L=progModels();
+  let nt=0,nr=0; L.forEach(mo=>mo.cortes.forEach(ct=>{nt++;if(medida(ct).real)nr++}));
+  const pend=nt-nr;
+  $('prevBadge').textContent=!k.totalPz?'—':(R.largas.length?'⛔':(pend?'⚠'+pend:'✓'));
+  if($('tabPrev').hidden)return;
+  const checks=[
+    {st:k.muebles?'ok':'err',i:'🪑',t:'Muebles',d:k.muebles?`${fmt(k.muebles,0)} muebles de ${L.length} modelos`:'No hay muebles capturados'},
+    {st:!nt?'err':(pend?'warn':'ok'),i:'📐',t:'Medidas reales',d:nt?`${nr} de ${nt} piezas rectificadas${pend?' · faltan '+pend:''}`:'—'},
+    {st:R.largas.length?'err':'ok',i:'📏',t:'Largo de piezas',d:R.largas.length?`${R.largas.length} medidas exceden el tramo útil (${fmt(R.cap)} cm)`:`Todas caben en el tramo de ${fmt(S.cfg.barra)} cm`},
+    {st:!k.tramosOpt?'warn':(k.aprov>=.9?'ok':'warn'),i:'♻️',t:'Aprovechamiento',d:k.tramosOpt?`${fmt(k.aprov*100,1)}% · ${fmt(k.tramosOpt,0)} tramos (estándar ${fmt(k.tramosStd)})`:'—'},
+    {st:S.cfg.resp?'ok':'warn',i:'👤',t:'Responsable',d:S.cfg.resp||'Sin capturar (pestaña Programa)'},
+    {st:'ok',i:'🏷️',t:'Folio',d:S.cfg.folio||'Se asigna al guardar'}
+  ];
+  const worst=checks.some(c=>c.st==='err')?'err':(checks.some(c=>c.st==='warn')?'warn':'ok');
+  $('prevVerdict').innerHTML=`<div class="verdict ${worst} noprint">${worst==='ok'?'✅ Programa listo para liberar':worst==='warn'?'⚠ Revisa los puntos marcados antes de guardar':'⛔ El programa tiene errores que impiden guardarlo'}${S.editId?' <small style="font:400 13px Barlow,sans-serif;margin-left:auto">Editando '+esc(S.cfg.folio)+'</small>':''}</div>`;
+  $('prevCheck').innerHTML=checks.map(c=>`<div class="chk ${c.st}"><span class="i">${c.i}</span><div><b>${c.t}</b>${esc(c.d)}</div></div>`).join('');
+  $('prevSave').disabled=worst==='err';
+  $('prevHead').innerHTML=printHead(S.cfg.folio||'(sin guardar)',S.cfg.fecha,S.cfg.resp,S.cfg);
+  if(!k.totalPz){['prevKpis','prevMueb','prevLista','prevPat'].forEach(id=>$(id).innerHTML='');$('prevLista').innerHTML='<div class="empty">Captura cantidades en la pestaña Programa.</div>';return}
+  const snap=snapshot(R);
+  $('prevKpis').innerHTML=htmlKpis(k,k.tramosStd-k.tramosOpt);
+  $('prevMueb').innerHTML=`<table><thead><tr><th>SKU</th><th>Modelo</th><th class="r">Muebles</th><th class="r">Tramos estándar</th></tr></thead><tbody>${R.muebles.map(x=>`<tr><td class="sku">${esc(x.sku)}</td><td class="modelo">${esc(x.modelo)}</td><td class="r num"><b>${x.cant}</b></td><td class="r num">${fmt(x.cant*x.tramos)}</td></tr>`).join('')}</tbody></table>`;
+  $('prevLista').innerHTML=(k.teoricas.length?`<div class="alert">📐 Medidas teóricas sin rectificar en: ${esc(k.teoricas.join(', '))}.</div>`:'')+htmlLista(R.lista);
+  $('prevPat').innerHTML=R.patrones.length?htmlPatrones(snap):'<div class="empty">Sin acomodos.</div>';
+}
+$('btnPreview').onclick=()=>switchTab('tabPrev');
+$('prevBack').onclick=()=>switchTab('tabProg');
+$('prevSave').onclick=()=>doSave();
+$('prevPrint').onclick=()=>{renderPreviewOut();document.body.className='p-prev';window.print()};
+
+/* =====================================================================
    PESTAÑA MEDIDAS
    ===================================================================== */
 function diff(ct){const r=parseFloat(ct.real),t=parseFloat(ct.teo);
   if(!(r>0))return'<span class="tag bad">pendiente</span>';if(!(t>0))return'—';
   const d=r-t;return `<span style="color:${Math.abs(d)<0.05?'var(--green)':'var(--warn)'}">${d>0?'+':''}${fmt(d,2)}</span>`}
 
+// La medida teórica queda bloqueada; solo se captura una vez en piezas nuevas que aún no la tienen
+function teoCell(ct){
+  return parseFloat(ct.teo)>0?`<span class="teo-fixed" title="Medida teórica fija">${fmt(ct.teo)}</span>`
+    :`<input type="number" step="any" min="0" data-m="${ct._m||''}" data-c="${ct.id}" data-f="teo" placeholder="teórica" title="Se bloquea al capturarla" style="background:var(--panel);border-color:var(--line)">`;
+}
 function renderCat(){
   let h='<table class="cat"><thead><tr><th>SKU</th><th>Modelo / parte</th><th>Tipo</th><th class="r">Teórica (cm)</th><th class="r">Real (cm)</th><th class="r">Diferencia</th><th class="r">Pzs por mueble</th><th class="r">Tramos por mueble</th><th></th></tr></thead><tbody>';
   for(const mo of S.catalogo){
@@ -584,11 +704,11 @@ function renderCat(){
       <td class="w-num"><input type="number" step="any" min="0" data-m="${mo.id}" data-f="tramos" value="${mo.tramos}"></td>
       <td><div class="row-actions"><button class="ghost" style="color:var(--steel)" data-addc="${mo.id}">➕ corte</button><button class="ghost" data-delm="${mo.id}" title="Eliminar modelo">🗑️</button></div></td></tr>`;
     for(const ct of mo.cortes){
-      const tp=tipoDe(ct);
+      const tp=tipoDe(ct); Object.defineProperty(ct,'_m',{value:mo.id,enumerable:false,configurable:true});
       h+=`<tr class="t-${tp}"><td></td><td><input data-m="${mo.id}" data-c="${ct.id}" data-f="parte" value="${esc(ct.parte)}" style="background:transparent;border-color:var(--line)"></td>
       <td><span class="tipo ${tp}"><span class="ico ${tp}"></span><select data-m="${mo.id}" data-c="${ct.id}" data-f="tipo" style="color:inherit"><option value="C"${tp==='C'?' selected':''}>Cubierta</option><option value="F"${tp==='F'?' selected':''}>Frontal</option></select></span></td>
-      <td class="w-num"><input type="number" step="any" min="0" data-m="${mo.id}" data-c="${ct.id}" data-f="teo" value="${ct.teo}" style="background:transparent;border-color:var(--line);color:var(--muted)"></td>
-      <td class="w-num"><input type="number" step="any" min="0" data-m="${mo.id}" data-c="${ct.id}" data-f="real" value="${ct.real}" placeholder="${ct.teo}" style="background:var(--green-soft);border-color:var(--green);font-weight:700"></td>
+      <td class="w-num r">${teoCell(ct)}</td>
+      <td class="w-num"><input class="real" type="number" step="any" min="0" data-m="${mo.id}" data-c="${ct.id}" data-f="real" value="${ct.real}" placeholder="capturar"></td>
       <td class="r num">${diff(ct)}</td>
       <td class="w-num"><input type="number" step="1" min="0" data-m="${mo.id}" data-c="${ct.id}" data-f="pzs" value="${ct.pzs}"></td><td></td>
       <td><div class="row-actions"><button class="ghost" data-delc="${ct.id}" data-m="${mo.id}" title="Eliminar corte">✕</button></div></td></tr>`;
@@ -598,6 +718,9 @@ function renderCat(){
   cat.querySelectorAll('input,select').forEach(el=>el.addEventListener('change',()=>{
     const mo=S.catalogo.find(x=>x.id===el.dataset.m);if(!mo)return;
     const tgt=el.dataset.c?mo.cortes.find(x=>x.id===el.dataset.c):mo;
+    if(el.dataset.f==='teo'&&parseFloat(tgt.teo)>0)return;   // la teórica ya capturada no se modifica
+    if(el.dataset.f==='teo'&&!(parseFloat(el.value)>0))return;
+    if(el.dataset.f==='teo'&&!confirm('La medida teórica '+el.value+' cm quedará fija y no se podrá editar. ¿Continuar?')){el.value='';return}
     tgt[el.dataset.f]=el.type==='number'?(el.value===''?'':parseFloat(el.value)):el.value;
     catChanged();
   }));
@@ -843,7 +966,7 @@ window.addEventListener('online',manualRefresh);
 function switchTab(id){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id));
   document.querySelectorAll('.tab').forEach(t=>t.hidden=t.id!==id);
-  if(id==='tabHist')renderHist(); if(id==='tabConf')renderConn();
+  if(id==='tabHist')renderHist(); if(id==='tabConf')renderConn(); if(id==='tabPrev')renderPreview();
   window.scrollTo({top:0});
 }
 document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
