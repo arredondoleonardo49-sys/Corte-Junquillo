@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Corte de junquillo · Línea Italia</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📏</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0F3; --panel:#FFFFFF; --ink:#1C2631; --muted:#5E6B78; --line:#D3DAE1;
+  --steel:#1F6FB2; --steel-soft:#DCEAF6; --green:#3E8A2E; --green-soft:#DDEFD6;
+  --peach:#FBE3D3; --peach-strong:#F3C3A2; --warn:#B4561B; --warn-soft:#FCEBDD; --err:#B42318; --err-soft:#FDE4E1;
+  --scrap:#C9D1D9; --cub:#1B5E9E; --cub-soft:#E3EEF9; --frt:#C2410C; --frt-soft:#FDEBDD;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131A21; --panel:#1B242D; --ink:#E6ECF2; --muted:#98A6B3; --line:#2D3A46;
+    --steel:#5FA6E0; --steel-soft:#1E3346; --green:#7CC766; --green-soft:#223826;
+    --peach:#3A2A20; --peach-strong:#5A3C2A; --warn:#F0A66E; --warn-soft:#3A2A1E; --err:#F97066; --err-soft:#3A1E1C;
+    --scrap:#3A4652; --cub:#5FA6E0; --cub-soft:#16283A; --frt:#F08A4B; --frt-soft:#3A2418;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131A21; --panel:#1B242D; --ink:#E6ECF2; --muted:#98A6B3; --line:#2D3A46;
+  --steel:#5FA6E0; --steel-soft:#1E3346; --green:#7CC766; --green-soft:#223826;
+  --peach:#3A2A20; --peach-strong:#5A3C2A; --warn:#F0A66E; --warn-soft:#3A2A1E; --err:#F97066; --err-soft:#3A1E1C;
+  --scrap:#3A4652; --cub:#5FA6E0; --cub-soft:#16283A; --frt:#F08A4B; --frt-soft:#3A2418;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Barlow",system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+.num{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:"Barlow Condensed","Arial Narrow",sans-serif;margin:0}
+
+/* encabezado y pestañas */
+header.top{display:flex;flex-wrap:wrap;gap:10px 20px;align-items:center;justify-content:space-between;margin-bottom:10px}
+header.top h1{font-size:26px;line-height:1.1}
+header.top p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.sync{display:inline-flex;align-items:center;gap:8px;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:5px 12px;cursor:pointer}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:#2FA84F}.dot.local{background:#D9A21B}.dot.err{background:var(--err)}.dot.busy{background:var(--steel);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+nav.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin-bottom:12px;overflow-x:auto}
+nav.tabs button{border:0;border-radius:6px 6px 0 0;background:transparent;color:var(--muted);padding:9px 14px;font:600 16px "Barlow Condensed","Arial Narrow",sans-serif;margin-bottom:-2px;border-bottom:3px solid transparent;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--steel);background:var(--panel)}
+nav.tabs .badge{display:inline-block;min-width:20px;padding:0 6px;border-radius:10px;background:var(--steel-soft);color:var(--steel);font-size:13px;margin-left:4px}
+.tab[hidden]{display:none}
+
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--steel)}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.primary{background:var(--steel);border-color:var(--steel);color:#fff}
+button.save{background:var(--green);border-color:var(--green);color:#fff}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:4px 8px}
+button.ghost:hover{color:var(--err)}
+button.icon{padding:4px 8px;font-size:15px}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+
+.params{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.params label,.field{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:3px}
+input,select{font:inherit;color:var(--ink);background:var(--peach);border:1px solid var(--peach-strong);border-radius:5px;padding:5px 7px;width:100%;min-width:0}
+input[type=number]{text-align:right;font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:16px}
+input.qty{background:#FFF6B8;border-color:#E3CF55;font-weight:700;color:#1C2631}
+:root[data-theme="dark"] input.qty{background:#4A4418;border-color:#8C7F2A;color:#FFF3B0}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) input.qty{background:#4A4418;border-color:#8C7F2A;color:#FFF3B0}}
+.filters input,.filters select{background:var(--panel);border-color:var(--line)}
+
+.editing{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;background:var(--steel-soft);border-left:4px solid var(--steel);border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:14px}
+.editing[hidden]{display:none}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--steel);border-radius:6px;padding:8px 12px}
+.kpi b{display:block;font:700 28px/1.1 "Barlow Condensed","Arial Narrow",sans-serif}
+.kpi span{font-size:13px;color:var(--muted)}
+.kpi.good{border-left-color:var(--green)}.kpi.warn{border-left-color:var(--warn)}
+
+details.sec{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:12px;overflow:hidden}
+details.sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 14px;font:600 18px/1.2 "Barlow Condensed","Arial Narrow",sans-serif;border-bottom:1px solid transparent}
+details.sec[open]>summary{border-bottom-color:var(--line)}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary::after{content:"▸";margin-left:auto;color:var(--muted);transition:transform .15s}
+details.sec[open]>summary::after{transform:rotate(90deg)}
+details.sec>summary small{font:400 13px "Barlow",sans-serif;color:var(--muted)}
+.body{padding:12px 14px}
+.scroll{overflow-x:auto}
+
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{background:var(--steel);color:#fff;font-weight:600;text-align:left;padding:6px 8px;white-space:nowrap}
+td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.r,th.r{text-align:right}td.c,th.c{text-align:center}
+.sku{background:var(--peach);white-space:nowrap}
+.modelo{background:var(--steel-soft);font-weight:500}
+tr.grp td{border-top:2px solid var(--ink)}
+.tag{display:inline-block;font-size:12px;padding:1px 7px;border-radius:10px;white-space:nowrap}
+.tag.ok{background:var(--green-soft);color:var(--green)}
+.tag.bad{background:var(--warn-soft);color:var(--warn)}
+.muted{color:var(--muted)}
+.alert{background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:14px}
+.alert.err{background:var(--err-soft);color:var(--err)}
+.alert.info{background:var(--steel-soft);color:var(--ink)}
+.empty{color:var(--muted);padding:18px 4px;text-align:center}
+
+/* cubierta vs frontal */
+.code{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:22px;padding:0 6px;color:#fff;font:700 13px/1 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.3px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.code.C{border-radius:3px}
+.code.F{border-radius:11px;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.3) 0 3px,transparent 3px 7px)}
+.tipo{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.tipo.C{color:var(--cub)}.tipo.F{color:var(--frt)}
+.ico{display:inline-block;width:18px;height:10px;border:2px solid currentColor;border-radius:2px;flex:none}
+.ico.F{height:5px;border-radius:3px;background:repeating-linear-gradient(45deg,currentColor 0 2px,transparent 2px 4px)}
+.blk{border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.blk:last-child{margin-bottom:0}
+.blk-h{display:flex;align-items:center;gap:10px;padding:8px 12px;font:700 17px/1.2 "Barlow Condensed","Arial Narrow",sans-serif;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.blk-h small{font:400 13px "Barlow",sans-serif;opacity:.9;margin-left:auto}
+.blk-h .ico{border-color:#fff}
+.blk-h .ico.F{background:repeating-linear-gradient(45deg,#fff 0 2px,transparent 2px 4px)}
+.blk.C .blk-h{background:var(--cub)}
+.blk.F .blk-h{background-color:var(--frt);background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.12) 0 6px,transparent 6px 12px)}
+.blk.C td.dimc{background:var(--cub-soft)}.blk.F td.dimc{background:var(--frt-soft)}
+.blk th{background:transparent;color:var(--muted);border-bottom:1px solid var(--line);font-size:13px}
+.dimbig{font:700 20px/1 "Barlow Condensed","Arial Narrow",sans-serif}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:8px 10px;background:var(--bg);border-radius:6px;margin-bottom:8px;font-size:13px}
+.legend .grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.legend .it{display:inline-flex;align-items:center;gap:4px}
+
+/* barras de corte */
+.pat{display:grid;grid-template-columns:78px 1fr;gap:6px 12px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line);break-inside:avoid}
+.pat:last-child{border-bottom:0}
+.pat .times{font:700 26px/1 "Barlow Condensed","Arial Narrow",sans-serif;text-align:right}
+.pat .times small{display:block;font:500 12px "Barlow",sans-serif;color:var(--muted)}
+.bar{display:flex;height:44px;border:1.5px solid var(--ink);border-radius:3px;overflow:hidden;background:repeating-linear-gradient(135deg,var(--scrap) 0 5px,transparent 5px 10px)}
+.bar .pc{display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font:600 13px/1.05 "Barlow Condensed","Arial Narrow",sans-serif;border-right:2px solid var(--panel);white-space:nowrap;overflow:hidden;min-width:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bar .pc b{font-size:12px;opacity:.95}
+.bar .pc.F{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.28) 0 4px,transparent 4px 9px);border-top:4px solid rgba(0,0,0,.25)}
+.bar .trim{background:var(--ink);opacity:.55}
+.pat .meta{grid-column:2;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
+.pat .meta b{color:var(--ink);font-weight:600}
+
+/* catálogo */
+.cat td input{background:var(--peach)}
+.cat tr.mh td{background:var(--steel-soft);border-top:2px solid var(--ink)}
+.cat .w-sku{width:130px}.cat .w-num{width:90px}
+.cat tr.t-C td:first-child{box-shadow:inset 4px 0 0 var(--cub)}
+.cat tr.t-F td:first-child{box-shadow:inset 4px 0 0 var(--frt)}
+.cat tr.t-C td{background:color-mix(in srgb,var(--cub-soft) 55%,transparent)}
+.cat tr.t-F td{background:color-mix(in srgb,var(--frt-soft) 55%,transparent)}
+.cat select{width:auto;background:var(--panel);border-color:var(--line);font-weight:600}
+.row-actions{display:flex;gap:4px;justify-content:flex-end}
+
+/* historial */
+.filters{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:8px;margin-bottom:10px}
+@media (max-width:700px){.filters{grid-template-columns:1fr 1fr}}
+.hist tr{cursor:pointer}
+.hist tr:hover td{background:var(--bg)}
+.hist tr.sel td{background:var(--steel-soft)}
+.est{font-weight:600;border-radius:12px;padding:2px 8px;width:auto;border:1px solid transparent}
+.est.Programado{background:var(--steel-soft);color:var(--steel)}
+.est.Cortado{background:var(--green-soft);color:var(--green)}
+.est.Cancelado{background:var(--err-soft);color:var(--err)}
+.pend{color:#D9A21B}
+.dethead{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px}
+.dethead div{background:var(--bg);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--muted)}
+.dethead b{display:block;color:var(--ink);font-size:15px}
+
+.printhead{display:none}
+footer{color:var(--muted);font-size:12px;text-align:center;padding:8px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:8px;font-weight:600;opacity:0;transition:.2s;pointer-events:none;z-index:9}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:640px){.pat{grid-template-columns:56px 1fr}.pat .times{font-size:22px}}
+@media print{
+  body{background:#fff;color:#000;font-size:12px}
+  header.top,nav.tabs,.params,.btns,.noprint,footer,.editing,.toast{display:none!important}
+  body.p-prog .tab:not(#tabProg),body.p-det .tab:not(#tabHist){display:none!important}
+  body.p-det #tabHist>*:not(#secDet){display:none!important}
+  body.p-prog #secCat{display:none!important}
+  .printhead{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;border:1px solid #000;padding:6px;margin-bottom:8px}
+  .printhead div{font-size:12px}.printhead b{display:block;font-size:14px}
+  details.sec{border:1px solid #999}
+  details.sec>summary::after{display:none}
+  .kpi{border:1px solid #999}
+  th{background:#DDD!important;color:#000}
+  input.qty{border:0;background:none}
+  .wrap{max-width:none;padding:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <h1>📏 Programa de corte de junquillo</h1>
+    <p>Línea Italia · programa, corta y consulta el historial de todo lo cortado.</p>
+  </div>
+  <button class="sync" id="syncBtn" title="Sincronizar ahora"><span class="dot" id="syncDot"></span><span id="syncTxt">Iniciando…</span></button>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="tabProg" aria-selected="true">🪚 Programa</button>
+  <button role="tab" data-tab="tabHist" aria-selected="false">🗂️ Historial <span class="badge" id="histCount">0</span></button>
+  <button role="tab" data-tab="tabCat" aria-selected="false">📐 Medidas</button>
+  <button role="tab" data-tab="tabConf" aria-selected="false">⚙️ Conexión</button>
+</nav>
+
+<!-- ======================= PROGRAMA ======================= -->
+<section class="tab" id="tabProg">
+  <div class="editing" id="editBanner" hidden></div>
+  <div class="printhead" id="printhead"></div>
+
+  <section class="params" aria-label="Parámetros del programa">
+    <label>Folio / programa<input id="pFolio" type="text" placeholder="Se asigna al guardar"></label>
+    <label>Fecha<input id="pFecha" type="date"></label>
+    <label>Responsable<input id="pResp" type="text" placeholder="Nombre"></label>
+    <label>Largo del tramo (cm)<input id="pBarra" type="number" min="1" step="any"></label>
+    <label>Espesor de corte (cm)<input id="pKerf" type="number" min="0" step="any"></label>
+    <label>Despunte por tramo (cm)<input id="pTrim" type="number" min="0" step="any"></label>
+  </section>
+
+  <div class="btns" style="margin-bottom:12px">
+    <button class="save" id="btnSave">💾 Guardar programa</button>
+    <button class="primary" id="btnPrint">🖨️ Imprimir hoja de corte</button>
+    <button id="btnCopy">📋 Copiar para Excel</button>
+    <button id="btnNew">🆕 Nuevo programa</button>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <details class="sec" open>
+    <summary>🪑 Programa de muebles <small>captura en las celdas amarillas</small></summary>
+    <div class="body scroll" id="prog"></div>
+  </details>
+  <details class="sec" open>
+    <summary>📋 Lista de corte <small>separada por cubierta y frontal</small></summary>
+    <div class="body" id="lista"></div>
+  </details>
+  <details class="sec" open>
+    <summary>🪚 Cómo cortar cada tramo <small>acomodo optimizado</small></summary>
+    <div class="body" id="patrones"></div>
+  </details>
+</section>
+
+<!-- ======================= HISTORIAL ======================= -->
+<section class="tab" id="tabHist" hidden>
+  <div class="kpis" id="hKpis"></div>
+
+  <details class="sec" open id="secHist">
+    <summary>🗂️ Programas guardados <small>clic en un renglón para ver el detalle</small></summary>
+    <div class="body">
+      <div class="filters">
+        <label class="field">Buscar<input id="fQ" type="search" placeholder="Folio, responsable o modelo"></label>
+        <label class="field">Desde<input id="fDesde" type="date"></label>
+        <label class="field">Hasta<input id="fHasta" type="date"></label>
+        <label class="field">Estado<select id="fEst"><option value="">Todos</option><option>Programado</option><option>Cortado</option><option>Cancelado</option></select></label>
+      </div>
+      <div class="scroll" id="histTable"></div>
+    </div>
+  </details>
+
+  <details class="sec" id="secDet" hidden open>
+    <summary>👁️ Detalle del programa <small id="detSub"></small></summary>
+    <div class="body" id="detBody"></div>
+  </details>
+
+  <details class="sec" id="secCons">
+    <summary>📊 Consumo por medida <small>suma de los programas filtrados, sin cancelados</small></summary>
+    <div class="body" id="consumo"></div>
+  </details>
+</section>
+
+<!-- ======================= MEDIDAS ======================= -->
+<section class="tab" id="tabCat" hidden>
+  <details class="sec" open id="secCat">
+    <summary>📐 Medidas: teórica vs. real <small>se comparten con todos los usuarios al estar conectado</small></summary>
+    <div class="body scroll">
+      <div class="alert info">La medida teórica viene de la tabla de aluminio. Captura la medida real en la celda verde; mientras esté vacía, el programa usa la teórica y la marca como pendiente.</div>
+      <div id="cat"></div>
+      <div class="btns" style="margin-top:10px">
+        <button id="btnAddModel">➕ Agregar modelo</button>
+        <button id="btnClearReal">🧽 Borrar medidas reales</button>
+        <button id="btnReset">↩️ Restaurar catálogo base</button>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ======================= CONEXIÓN ======================= -->
+<section class="tab" id="tabConf" hidden>
+  <details class="sec" open>
+    <summary>⚙️ Conexión con Google Sheets</summary>
+    <div class="body">
+      <label class="field" style="max-width:720px">URL de la aplicación web de Apps Script
+        <input id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" style="background:var(--panel);border-color:var(--line)">
+      </label>
+      <div class="btns" style="margin:10px 0">
+        <button class="primary" id="btnSaveUrl">💾 Guardar URL</button>
+        <button id="btnTest">🔌 Probar conexión</button>
+        <button id="btnSyncNow">🔄 Sincronizar ahora</button>
+      </div>
+      <div id="connInfo" class="muted" style="font-size:14px"></div>
+      <div class="alert info" style="margin-top:12px">Sin URL, los programas se guardan solo en este navegador. Al conectar, se suben los pendientes y el historial y las medidas se comparten entre todos los equipos. La información se actualiza cada minuto.</div>
+    </div>
+  </details>
+</section>
+
+<footer>Línea Italia · Ingeniería de Procesos</footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+/* =====================================================================
+   CONFIGURACIÓN — pega aquí la URL de tu Web App para que todos los
+   equipos se conecten sin configurar nada.
+   ===================================================================== */
+const API_DEFAULT = 'https://script.google.com/macros/s/AKfycbz_uXvCL1maOZyvmyHWu0Si2Yjc04OsGHrFkwJhLp1jqPWypyt20Bv11x9zzRIzPNAy4Q/exec';
+const POLL_MS = 60000;
+
+const K={draft:'jq-draft-v3',hist:'jq-hist-v3',api:'jq-api',tomb:'jq-tomb',catDirty:'jq-catdirty'};
+const PAL={C:['#1B5E9E','#0E7C86','#3B5BA9','#1F8FB0','#255E7A','#4A6FD1','#16697A','#2F4F8F','#2A86C9','#0B5563','#5670B5','#1D7FA8'],F:['#C2410C','#B45309','#B91C1C','#D9642A','#9A3412','#A16207','#C8551B','#8F2D12']};
+const TIPO={C:'Cubierta',F:'Frontal'};
+const U='cm';
+
+/* ---------- utilidades ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const fmt=(n,d=2)=>isFinite(n)?Number(n).toLocaleString('es-MX',{maximumFractionDigits:d}):'—';
+const uid=p=>(p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const today=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)};
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const tipoDe=ct=>ct.tipo||(/frontal/i.test(ct.parte)?'F':'C');
+const medida=ct=>{const r=parseFloat(ct.real);if(r>0)return{v:r,real:true};const t=parseFloat(ct.teo);return{v:t>0?t:NaN,real:false}};
+function toast(t){const el=$('toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2200)}
+
+/* ---------- catálogo base ---------- */
+function m(sku,modelo,tramos,cortes){return{id:uid('M'),sku,modelo,tramos,cortes}}
+function c(parte,teo='',pzs=2){return{id:uid('C'),parte,tipo:/frontal/i.test(parte)?'F':'C',teo,real:'',pzs}}
+const baseCatalog=()=>[
+  m('LINCT96','MESA CONFERENCIA',2,[c('Mesa',110.0),c('Mesa',230.0)]),
+  m('LINDT7230','72x30',2.15,[c('Cubierta',63.6),c('Cubierta',166.8),c('Frontal',46.4),c('Frontal',91.1)]),
+  m('LINDT7224','72x24',2.565,[c('Cubierta',47.4),c('Cubierta',166.8),c('Frontal',46.4),c('Frontal',91.1)]),
+  m('LINDT6630','66x30',1.95,[c('Cubierta',63.6),c('Cubierta',152.4),c('Frontal',46.4),c('Frontal',76.7)]),
+  m('LINDT6624','66x24',1.85,[c('Cubierta',47.4),c('Cubierta',152.4),c('Frontal',46.4),c('Frontal',76.7)]),
+  m('LINB4524','PUENTE',1.46,[c('Cubierta',47.4),c('Cubierta',105.0),c('Frontal',46.4),c('Frontal',109.4)]),
+  m('LINR4524','RETORNO',1.52,[c('Cubierta',47.4),c('Cubierta',105.0),c('Frontal',46.4),c('Frontal',66.9)]),
+  m('LINLF','LATERAL FILE',0.75,[c('Lateral file',50.0),c('Lateral file',75.6)]),
+  m('LINLWC','LOW WALL CABINET',1.335,[c('Low wall',50.0),c('Low wall',172.0)]),
+  m('LINREC72','RECEPCIÓN 72',1.155,[c('Recepción',24.0),c('Recepción',175.8)])
+];
+
+/* ---------- estado ---------- */
+const newCfg=()=>({barra:366,kerf:0.3,trim:0,folio:'',fecha:today(),resp:''});
+let S=ls.get(K.draft,null)||{cfg:newCfg(),catalogo:baseCatalog(),qty:{},editId:null};
+let H=ls.get(K.hist,[]);            // historial local (espejo del servidor + pendientes)
+let tomb=ls.get(K.tomb,[]);         // IDs borrados pendientes de confirmar
+let selId=null;
+const saveDraft=()=>ls.set(K.draft,S);
+const saveH=()=>{ls.set(K.hist,H);ls.set(K.tomb,tomb)};
+const API=()=>ls.get(K.api,'')||API_DEFAULT;
+
+/* =====================================================================
+   CÁLCULO
+   ===================================================================== */
+function compute(){
+  const cfg=S.cfg, cap=cfg.barra-cfg.trim, kerf=cfg.kerf;
+  const dims=new Map(); let tramosStd=0, muebles=0; const faltan=[], teoricas=new Set(), mueblesList=[];
+  for(const mo of S.catalogo){
+    const q=parseInt(S.qty[mo.id])||0; if(!q)continue;
+    muebles+=q; tramosStd+=q*(parseFloat(mo.tramos)||0);
+    mueblesList.push({sku:mo.sku,modelo:mo.modelo,cant:q,tramos:parseFloat(mo.tramos)||0});
+    for(const ct of mo.cortes){
+      const md=medida(ct), d=md.v, p=(parseFloat(ct.pzs)||0)*q;
+      if(!(d>0)){faltan.push(mo.modelo+' · '+ct.parte);continue}
+      if(!md.real)teoricas.add(mo.modelo);
+      if(!p)continue;
+      const tp=tipoDe(ct), k=tp+d.toFixed(3);
+      if(!dims.has(k))dims.set(k,{dim:d,tipo:tp,pzs:0,usos:new Set(),teo:false});
+      const o=dims.get(k);o.pzs+=p;o.usos.add(mo.modelo);if(!md.real)o.teo=true;
+    }
+  }
+  const lista=[...dims.values()].sort((a,b)=>b.dim-a.dim);
+  const cnt={C:0,F:0};
+  lista.forEach(o=>{const i=cnt[o.tipo]++;o.code=o.tipo+(i+1);o.color=PAL[o.tipo][i%PAL[o.tipo].length];
+    const pt=Math.floor((cap+kerf)/(o.dim+kerf));o.porTramo=pt;o.tramos=pt>0?o.pzs/pt:Infinity});
+  const largas=lista.filter(o=>o.dim>cap);
+  const bars=[];
+  if(!largas.length){
+    for(const o of lista)for(let i=0;i<o.pzs;i++){
+      let b=bars.find(b=>b.used+(b.cuts.length?kerf:0)+o.dim<=cap+1e-9);
+      if(!b){b={cuts:[],used:0};bars.push(b)}
+      b.used+=(b.cuts.length?kerf:0)+o.dim;b.cuts.push(o);
+    }
+  }
+  const pats=new Map();
+  for(const b of bars){const k=b.cuts.map(x=>x.code).join('|');
+    if(!pats.has(k))pats.set(k,{cuts:b.cuts,used:b.used,n:0});pats.get(k).n++}
+  const patrones=[...pats.values()].sort((a,b)=>b.n-a.n||b.used-a.used);
+  const totalPz=lista.reduce((s,o)=>s+o.pzs,0);
+  const util=lista.reduce((s,o)=>s+o.pzs*o.dim,0);
+  const aprov=bars.length?util/(bars.length*cfg.barra):0;
+  return{lista,patrones,muebles:mueblesList,faltan,largas,cap,
+    kpis:{muebles,totalPz,tramosOpt:bars.length,tramosStd,aprov,teoricas:[...teoricas]}};
+}
+
+/* Instantánea serializable (se guarda en historial y en Sheets) */
+function snapshot(R){
+  return{
+    cfg:{barra:S.cfg.barra,kerf:S.cfg.kerf,trim:S.cfg.trim},
+    muebles:R.muebles,
+    lista:R.lista.map(o=>({code:o.code,tipo:o.tipo,dim:o.dim,pzs:o.pzs,porTramo:o.porTramo,tramos:isFinite(o.tramos)?+o.tramos.toFixed(4):0,teo:o.teo,color:o.color,usos:[...o.usos]})),
+    patrones:R.patrones.map(p=>({n:p.n,used:+p.used.toFixed(3),cuts:p.cuts.map(o=>o.code)})),
+    kpis:R.kpis
+  };
+}
+
+/* =====================================================================
+   RENDER COMPARTIDO (programa en vivo y detalle del historial)
+   ===================================================================== */
+function htmlKpis(k,ahorro){
+  return `<div class="kpi"><b>${fmt(k.muebles,0)}</b><span>muebles programados</span></div>
+  <div class="kpi"><b>${fmt(k.totalPz,0)}</b><span>piezas de junquillo</span></div>
+  <div class="kpi good"><b>${fmt(k.tramosOpt,0)}</b><span>tramos a cortar (optimizado)</span></div>
+  <div class="kpi"><b>${fmt(k.tramosStd,2)}</b><span>tramos según estándar</span></div>
+  <div class="kpi ${k.aprov>=.9?'good':'warn'}"><b>${k.tramosOpt?fmt(k.aprov*100,1)+'%':'—'}</b><span>aprovechamiento${ahorro>0.005?` · ahorro ${fmt(ahorro)} tramos`:''}</span></div>`;
+}
+function htmlLista(lista){
+  let h='';
+  for(const tp of ['C','F']){
+    const L=lista.filter(o=>o.tipo===tp); if(!L.length)continue;
+    const pz=L.reduce((x,o)=>x+o.pzs,0), tr=L.reduce((x,o)=>x+(o.tramos||0),0);
+    h+=`<div class="blk ${tp}"><div class="blk-h"><span class="ico ${tp}"></span>${TIPO[tp]}<small>${fmt(pz,0)} piezas · ${fmt(tr)} tramos si se corta por separado</small></div>
+    <div class="scroll"><table><thead><tr><th>Código</th><th>Dimensión</th><th class="r">Piezas</th><th class="r">Piezas por tramo</th><th class="r">Total de tramos</th><th>Modelos</th></tr></thead><tbody>`;
+    for(const o of L)h+=`<tr><td><span class="code ${tp}" style="background-color:${o.color}">${o.code}</span></td>
+      <td class="dimc"><span class="dimbig">${fmt(o.dim)}</span> ${U}${o.teo?' <span class="tag bad" title="Incluye medida teórica sin rectificar">teórica</span>':''}</td>
+      <td class="r num dimbig">${fmt(o.pzs,0)}</td><td class="r num">${o.porTramo||'—'}</td><td class="r num">${fmt(o.tramos)}</td>
+      <td class="muted">${esc([...(o.usos||[])].join(', '))}</td></tr>`;
+    h+='</tbody></table></div></div>';
+  }
+  return h;
+}
+function htmlPatrones(snap){
+  const byCode=Object.fromEntries(snap.lista.map(o=>[o.code,o]));
+  const B=snap.cfg.barra, T=snap.cfg.trim||0;
+  const total=snap.patrones.reduce((s,p)=>s+p.n,0);
+  let h=`<p class="muted" style="margin:0 0 6px">Corta <b>${total}</b> tramos de ${fmt(B)} ${U}. Cada franja es un tramo; el número de la izquierda indica cuántas veces se repite ese acomodo. La zona rayada gris es sobrante.</p>`;
+  h+='<div class="legend">'+['C','F'].map(tp=>{const L=snap.lista.filter(o=>o.tipo===tp);if(!L.length)return'';
+    return `<div class="grp"><span class="tipo ${tp}"><span class="ico ${tp}"></span>${TIPO[tp]}</span>${L.map(o=>`<span class="it"><span class="code ${tp}" style="background-color:${o.color}">${o.code}</span>${fmt(o.dim)}</span>`).join('')}</div>`}).join('')+'</div>';
+  snap.patrones.forEach((p,i)=>{
+    const cuts=p.cuts.map(cd=>byCode[cd]).filter(Boolean);
+    const sob=B-T-p.used;
+    const segs=(T>0?`<div class="pc trim" style="flex:0 0 ${T/B*100}%" title="Despunte"></div>`:'')+
+      cuts.map(o=>`<div class="pc ${o.tipo}" style="flex:0 0 ${o.dim/B*100}%;background-color:${o.color}" title="${o.code} · ${TIPO[o.tipo]} · ${fmt(o.dim)} ${U}"><b>${o.code}</b>${fmt(o.dim)}</div>`).join('');
+    const cnt=new Map();cuts.forEach(o=>cnt.set(o,(cnt.get(o)||0)+1));
+    const desc=[...cnt].map(([o,n])=>`${n} × ${o.code} (${fmt(o.dim)})`).join(' + ');
+    const descH=[...cnt].map(([o,n])=>`${n} × <span class="code ${o.tipo}" style="background-color:${o.color};height:18px;min-width:28px">${o.code}</span> ${fmt(o.dim)}`).join(' + ');
+    h+=`<div class="pat"><div class="times">${p.n}×<small>tramos</small></div>
+      <div class="bar" role="img" aria-label="Acomodo ${i+1}: ${desc}">${segs}</div>
+      <div class="meta"><span>Acomodo ${String.fromCharCode(65+i%26)}: <b>${descH}</b> ${U}</span><span>Sobrante <b>${fmt(sob)} ${U}</b> por tramo</span><span>Piezas <b>${cuts.length*p.n}</b></span></div></div>`;
+  });
+  return h;
+}
+
+/* =====================================================================
+   PESTAÑA PROGRAMA
+   ===================================================================== */
+const P={pFolio:'folio',pFecha:'fecha',pResp:'resp',pBarra:'barra',pKerf:'kerf',pTrim:'trim'};
+function fillParams(){for(const [id,k] of Object.entries(P))$(id).value=S.cfg[k]??''}
+for(const [id,k] of Object.entries(P)){
+  $(id).addEventListener('change',()=>{const el=$(id);S.cfg[k]=el.type==='number'?parseFloat(el.value)||0:el.value;saveDraft();renderResults()});
+}
+
+function renderProg(){
+  let h='<table><thead><tr><th class="c">N.º de muebles</th><th>SKU</th><th>Modelo</th><th class="r">Tramos por mueble</th><th class="r">Tramos estándar</th><th class="c">Medidas</th></tr></thead><tbody>';
+  for(const mo of S.catalogo){
+    const nr=mo.cortes.filter(ct=>medida(ct).real).length, nt=mo.cortes.length;
+    h+=`<tr class="grp"><td class="c" style="width:120px"><input class="qty" type="number" min="0" step="1" data-q="${mo.id}" value="${S.qty[mo.id]||''}" placeholder="0" aria-label="Muebles ${esc(mo.modelo)}"></td>
+    <td class="sku">${esc(mo.sku)}</td><td class="modelo">${esc(mo.modelo)}</td>
+    <td class="r num">${fmt(mo.tramos,3)}</td><td class="r num" data-std="${mo.id}">—</td>
+    <td class="c">${nt&&nr===nt?'<span class="tag ok">✓ reales</span>':`<span class="tag bad">◐ ${nr}/${nt} rectificadas</span>`}</td></tr>`;
+  }
+  $('prog').innerHTML=h+'</tbody></table>';
+  $('prog').querySelectorAll('input[data-q]').forEach(el=>el.addEventListener('input',()=>{
+    const v=parseInt(el.value);if(v>0)S.qty[el.dataset.q]=v;else delete S.qty[el.dataset.q];saveDraft();renderResults()}));
+}
+
+let lastR=null;
+function renderResults(){
+  const R=compute(); lastR=R;
+  for(const mo of S.catalogo){const cell=document.querySelector(`[data-std="${mo.id}"]`);
+    if(cell){const q=parseInt(S.qty[mo.id])||0;cell.textContent=q?fmt(q*mo.tramos,2):'—'}}
+  $('kpis').innerHTML=htmlKpis(R.kpis,R.kpis.tramosStd-R.kpis.tramosOpt);
+  let al='';
+  if(R.kpis.teoricas.length)al+=`<div class="alert">📐 Se están usando medidas teóricas en: ${esc(R.kpis.teoricas.join(', '))}. Rectifícalas en la pestaña Medidas antes de liberar el programa.</div>`;
+  if(R.faltan.length)al+=`<div class="alert">⚠ Faltan medidas en: ${esc([...new Set(R.faltan)].join(', '))}.</div>`;
+  if(R.largas.length)al+=`<div class="alert err">⛔ Piezas más largas que el tramo útil (${fmt(R.cap)} ${U}): ${R.largas.map(o=>fmt(o.dim)).join(', ')}. Revisa el largo del tramo o la medida.</div>`;
+  $('lista').innerHTML=R.lista.length?al+htmlLista(R.lista):al+'<div class="empty">Captura cantidades en el programa de muebles para generar la lista de corte.</div>';
+  $('patrones').innerHTML=R.patrones.length?htmlPatrones(snapshot(R)):'<div class="empty">Aquí aparecerá cómo cortar cada tramo en cuanto haya piezas en la lista.</div>';
+  renderEditBanner();
+}
+
+function renderEditBanner(){
+  const b=$('editBanner'); const p=S.editId&&H.find(x=>x.id===S.editId);
+  if(!p){b.hidden=true;return}
+  b.hidden=false;
+  b.innerHTML=`✏️ Editando el programa <b>${esc(p.folio)}</b> (${esc(p.estado)}). Al guardar se actualiza el mismo registro.
+    <button class="ghost" id="btnCopyAsNew" style="color:var(--steel)">Guardar como programa nuevo</button>`;
+  $('btnCopyAsNew').onclick=()=>{S.editId=null;S.cfg.folio='';fillParams();saveDraft();renderEditBanner();toast('Se guardará como programa nuevo')};
+}
+
+function nextFolio(fecha){
+  const ymd=(fecha||today()).replace(/-/g,'').slice(2);
+  const pre='JQ-'+ymd+'-';
+  const n=H.filter(p=>String(p.folio).startsWith(pre)).map(p=>parseInt(String(p.folio).slice(pre.length))||0);
+  return pre+String((n.length?Math.max(...n):0)+1).padStart(2,'0');
+}
+
+$('btnSave').onclick=()=>{
+  const R=compute();
+  if(!R.kpis.totalPz){toast('Captura al menos un mueble para guardar');return}
+  if(R.largas.length){toast('Corrige las piezas más largas que el tramo');return}
+  if(R.kpis.teoricas.length&&!confirm('El programa usa medidas teóricas sin rectificar en: '+R.kpis.teoricas.join(', ')+'.\n¿Guardar de todos modos?'))return;
+  const now=Date.now();
+  let p=S.editId&&H.find(x=>x.id===S.editId);
+  if(!S.cfg.folio)S.cfg.folio=nextFolio(S.cfg.fecha);
+  if(p){Object.assign(p,{folio:S.cfg.folio,fecha:S.cfg.fecha,resp:S.cfg.resp,actualizado:now,sync:false,data:snapshot(R)})}
+  else{
+    p={id:uid('P'),folio:S.cfg.folio,fecha:S.cfg.fecha,resp:S.cfg.resp,estado:'Programado',fechaCorte:'',creado:now,actualizado:now,sync:false,data:snapshot(R)};
+    H.unshift(p);S.editId=p.id;
+  }
+  saveH();saveDraft();fillParams();renderHist();renderResults();
+  toast('💾 Programa '+p.folio+' guardado');
+  pushProgram(p);
+};
+
+$('btnNew').onclick=()=>{
+  if(Object.keys(S.qty).length&&!S.editId&&!confirm('Hay cantidades sin guardar. ¿Empezar un programa nuevo?'))return;
+  const b=S.cfg;S.cfg={...newCfg(),barra:b.barra,kerf:b.kerf,trim:b.trim,resp:b.resp};S.qty={};S.editId=null;
+  saveDraft();fillParams();renderProg();renderResults();
+};
+
+$('btnCopy').onclick=async()=>{
+  const R=compute();
+  let t=`Programa\t${S.cfg.folio}\nFecha\t${S.cfg.fecha}\nTramo\t${S.cfg.barra} ${U}\n\nCODIGO\tTIPO\tDIMENSION\tPIEZAS\tTOTAL DE TRAMOS\n`;
+  R.lista.forEach(o=>t+=`${o.code}\t${TIPO[o.tipo]}\t${o.dim}\t${o.pzs}\t${o.tramos.toFixed(2)}\n`);
+  t+=`\nACOMODO\tVECES\tCORTES\tSOBRANTE\n`;
+  R.patrones.forEach((p,i)=>t+=`${String.fromCharCode(65+i%26)}\t${p.n}\t${p.cuts.map(o=>o.code+' '+o.dim).join(' + ')}\t${(S.cfg.barra-S.cfg.trim-p.used).toFixed(2)}\n`);
+  t+=`\nTramos optimizado\t${R.kpis.tramosOpt}\nTramos estándar\t${R.kpis.tramosStd.toFixed(2)}\n`;
+  try{await navigator.clipboard.writeText(t);toast('📋 Lista copiada')}catch(e){prompt('Copia este texto y pégalo en Excel:',t)}
+};
+
+function printHead(folio,fecha,resp,cfg){
+  return `<div>Programa<b>${esc(folio||'—')}</b></div><div>Fecha<b>${esc(fecha||'—')}</b></div><div>Responsable<b>${esc(resp||'—')}</b></div><div>Tramo<b>${fmt(cfg.barra)} ${U} · corte ${fmt(cfg.kerf)}</b></div>`;
+}
+$('btnPrint').onclick=()=>{
+  $('printhead').innerHTML=printHead(S.cfg.folio,S.cfg.fecha,S.cfg.resp,S.cfg);
+  document.body.className='p-prog';window.print();
+};
+window.addEventListener('afterprint',()=>document.body.className='');
+
+/* =====================================================================
+   PESTAÑA MEDIDAS
+   ===================================================================== */
+function diff(ct){const r=parseFloat(ct.real),t=parseFloat(ct.teo);
+  if(!(r>0))return'<span class="tag bad">pendiente</span>';if(!(t>0))return'—';
+  const d=r-t;return `<span style="color:${Math.abs(d)<0.05?'var(--green)':'var(--warn)'}">${d>0?'+':''}${fmt(d,2)}</span>`}
+
+function renderCat(){
+  let h='<table class="cat"><thead><tr><th>SKU</th><th>Modelo / parte</th><th>Tipo</th><th class="r">Teórica (cm)</th><th class="r">Real (cm)</th><th class="r">Diferencia</th><th class="r">Pzs por mueble</th><th class="r">Tramos por mueble</th><th></th></tr></thead><tbody>';
+  for(const mo of S.catalogo){
+    h+=`<tr class="mh"><td class="w-sku"><input data-m="${mo.id}" data-f="sku" value="${esc(mo.sku)}"></td>
+      <td><input data-m="${mo.id}" data-f="modelo" value="${esc(mo.modelo)}"></td><td></td><td></td><td></td><td></td><td></td>
+      <td class="w-num"><input type="number" step="any" min="0" data-m="${mo.id}" data-f="tramos" value="${mo.tramos}"></td>
+      <td><div class="row-actions"><button class="ghost" style="color:var(--steel)" data-addc="${mo.id}">➕ corte</button><button class="ghost" data-delm="${mo.id}" title="Eliminar modelo">🗑️</button></div></td></tr>`;
+    for(const ct of mo.cortes){
+      const tp=tipoDe(ct);
+      h+=`<tr class="t-${tp}"><td></td><td><input data-m="${mo.id}" data-c="${ct.id}" data-f="parte" value="${esc(ct.parte)}" style="background:transparent;border-color:var(--line)"></td>
+      <td><span class="tipo ${tp}"><span class="ico ${tp}"></span><select data-m="${mo.id}" data-c="${ct.id}" data-f="tipo" style="color:inherit"><option value="C"${tp==='C'?' selected':''}>Cubierta</option><option value="F"${tp==='F'?' selected':''}>Frontal</option></select></span></td>
+      <td class="w-num"><input type="number" step="any" min="0" data-m="${mo.id}" data-c="${ct.id}" data-f="teo" value="${ct.teo}" style="background:transparent;border-color:var(--line);color:var(--muted)"></td>
+      <td class="w-num"><input type="number" step="any" min="0" data-m="${mo.id}" data-c="${ct.id}" data-f="real" value="${ct.real}" placeholder="${ct.teo}" style="background:var(--green-soft);border-color:var(--green);font-weight:700"></td>
+      <td class="r num">${diff(ct)}</td>
+      <td class="w-num"><input type="number" step="1" min="0" data-m="${mo.id}" data-c="${ct.id}" data-f="pzs" value="${ct.pzs}"></td><td></td>
+      <td><div class="row-actions"><button class="ghost" data-delc="${ct.id}" data-m="${mo.id}" title="Eliminar corte">✕</button></div></td></tr>`;
+    }
+  }
+  const cat=$('cat'); cat.innerHTML=h+'</tbody></table>';
+  cat.querySelectorAll('input,select').forEach(el=>el.addEventListener('change',()=>{
+    const mo=S.catalogo.find(x=>x.id===el.dataset.m);if(!mo)return;
+    const tgt=el.dataset.c?mo.cortes.find(x=>x.id===el.dataset.c):mo;
+    tgt[el.dataset.f]=el.type==='number'?(el.value===''?'':parseFloat(el.value)):el.value;
+    catChanged();
+  }));
+  cat.querySelectorAll('[data-addc]').forEach(b=>b.onclick=()=>{S.catalogo.find(x=>x.id===b.dataset.addc).cortes.push(c('Cubierta'));catChanged()});
+  cat.querySelectorAll('[data-delc]').forEach(b=>b.onclick=()=>{const mo=S.catalogo.find(x=>x.id===b.dataset.m);mo.cortes=mo.cortes.filter(x=>x.id!==b.dataset.delc);catChanged()});
+  cat.querySelectorAll('[data-delm]').forEach(b=>b.onclick=()=>{const mo=S.catalogo.find(x=>x.id===b.dataset.delm);
+    if(confirm('¿Eliminar el modelo '+mo.modelo+'?')){S.catalogo=S.catalogo.filter(x=>x!==mo);delete S.qty[mo.id];catChanged()}});
+}
+function catChanged(){saveDraft();ls.set(K.catDirty,true);renderCat();renderProg();renderResults();schedulePushCatalog()}
+$('btnAddModel').onclick=()=>{S.catalogo.push(m('NUEVO','Nuevo modelo',1,[c('Cubierta'),c('Frontal')]));catChanged()};
+$('btnClearReal').onclick=()=>{if(confirm('Se borrarán todas las medidas reales capturadas. ¿Continuar?')){S.catalogo.forEach(mo=>mo.cortes.forEach(ct=>ct.real=''));catChanged()}};
+$('btnReset').onclick=()=>{if(confirm('Se reemplazará el catálogo por el base con medidas teóricas y sin medidas reales, también para los demás usuarios conectados. ¿Continuar?')){S.catalogo=baseCatalog();S.qty={};catChanged()}};
+
+/* =====================================================================
+   PESTAÑA HISTORIAL
+   ===================================================================== */
+['fQ','fDesde','fHasta','fEst'].forEach(id=>$(id).addEventListener('input',renderHist));
+function filtered(){
+  const q=$('fQ').value.trim().toLowerCase(), d=$('fDesde').value, a=$('fHasta').value, e=$('fEst').value;
+  return H.filter(p=>{
+    if(e&&p.estado!==e)return false;
+    if(d&&p.fecha<d)return false;
+    if(a&&p.fecha>a)return false;
+    if(q){const txt=[p.folio,p.resp,...(p.data?.muebles||[]).map(x=>x.modelo+' '+x.sku)].join(' ').toLowerCase();if(!txt.includes(q))return false}
+    return true;
+  }).sort((x,y)=>(y.fecha||'').localeCompare(x.fecha||'')||y.creado-x.creado);
+}
+function renderHist(){
+  $('histCount').textContent=H.length;
+  const L=filtered(), act=L.filter(p=>p.estado!=='Cancelado'), cort=L.filter(p=>p.estado==='Cortado');
+  const sum=(arr,f)=>arr.reduce((s,p)=>s+(f(p.data?.kpis||{})||0),0);
+  const aprovProm=cort.length?sum(cort,k=>k.aprov)/cort.length:0;
+  $('hKpis').innerHTML=`<div class="kpi"><b>${L.length}</b><span>programas en el filtro</span></div>
+    <div class="kpi good"><b>${cort.length}</b><span>programas cortados</span></div>
+    <div class="kpi good"><b>${fmt(sum(cort,k=>k.tramosOpt),0)}</b><span>tramos cortados</span></div>
+    <div class="kpi"><b>${fmt(sum(cort,k=>k.totalPz),0)}</b><span>piezas cortadas</span></div>
+    <div class="kpi"><b>${fmt(sum(act.filter(p=>p.estado==='Programado'),k=>k.tramosOpt),0)}</b><span>tramos por cortar</span></div>
+    <div class="kpi ${aprovProm>=.9?'good':'warn'}"><b>${cort.length?fmt(aprovProm*100,1)+'%':'—'}</b><span>aprovechamiento promedio</span></div>`;
+  if(!L.length){$('histTable').innerHTML=`<div class="empty">${H.length?'Ningún programa coincide con el filtro.':'Aún no hay programas guardados. Captura uno en la pestaña Programa y presiona Guardar programa.'}</div>`;renderConsumo(act);return}
+  let h='<table class="hist"><thead><tr><th>Folio</th><th>Fecha</th><th>Responsable</th><th>Modelos</th><th class="r">Muebles</th><th class="r">Tramos</th><th class="r">Aprov.</th><th>Estado</th><th class="c">Nube</th><th></th></tr></thead><tbody>';
+  for(const p of L){
+    const k=p.data?.kpis||{};
+    const mods=(p.data?.muebles||[]).map(x=>`${x.cant}× ${x.modelo}`).join(', ');
+    h+=`<tr data-id="${p.id}" class="${p.id===selId?'sel':''}"><td><b>${esc(p.folio)}</b></td><td class="num">${esc(p.fecha)}</td><td>${esc(p.resp||'—')}</td>
+      <td class="muted" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(mods)}">${esc(mods)}</td>
+      <td class="r num">${fmt(k.muebles,0)}</td><td class="r num"><b>${fmt(k.tramosOpt,0)}</b></td><td class="r num">${k.tramosOpt?fmt(k.aprov*100,1)+'%':'—'}</td>
+      <td><select class="est ${p.estado}" data-est="${p.id}" aria-label="Estado ${esc(p.folio)}">${['Programado','Cortado','Cancelado'].map(e=>`<option${e===p.estado?' selected':''}>${e}</option>`).join('')}</select>${p.estado==='Cortado'&&p.fechaCorte?`<div class="muted" style="font-size:12px">${esc(p.fechaCorte)}</div>`:''}</td>
+      <td class="c" title="${p.sync?'Sincronizado':'Pendiente de subir'}">${p.sync?'☁️':'<span class="pend">⏳</span>'}</td>
+      <td><div class="row-actions"><button class="icon ghost" style="color:var(--steel)" data-edit="${p.id}" title="Abrir en el programa">✏️</button><button class="icon ghost" data-del="${p.id}" title="Eliminar">🗑️</button></div></td></tr>`;
+  }
+  const t=$('histTable'); t.innerHTML=h+'</tbody></table>';
+  t.querySelectorAll('tr[data-id]').forEach(tr=>tr.addEventListener('click',e=>{if(e.target.closest('select,button'))return;showDetail(tr.dataset.id)}));
+  t.querySelectorAll('[data-est]').forEach(sel=>sel.addEventListener('change',()=>setEstado(sel.dataset.est,sel.value)));
+  t.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openInEditor(b.dataset.edit));
+  t.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delProgram(b.dataset.del));
+  renderConsumo(act);
+  if(selId&&H.find(p=>p.id===selId))showDetail(selId,true);
+}
+
+function renderConsumo(arr){
+  const agg=new Map();
+  for(const p of arr)for(const o of (p.data?.lista||[])){
+    const k=o.tipo+o.dim.toFixed(3);
+    if(!agg.has(k))agg.set(k,{tipo:o.tipo,dim:o.dim,pzs:0,prog:0,tramos:0,usos:new Set()});
+    const a=agg.get(k);a.pzs+=o.pzs;a.prog++;a.tramos+=o.tramos||0;(o.usos||[]).forEach(u=>a.usos.add(u));
+  }
+  const L=[...agg.values()].sort((a,b)=>b.dim-a.dim);
+  if(!L.length){$('consumo').innerHTML='<div class="empty">Sin datos para el filtro actual.</div>';return}
+  let h='';
+  for(const tp of ['C','F']){
+    const X=L.filter(o=>o.tipo===tp);if(!X.length)continue;
+    h+=`<div class="blk ${tp}"><div class="blk-h"><span class="ico ${tp}"></span>${TIPO[tp]}<small>${fmt(X.reduce((s,o)=>s+o.pzs,0),0)} piezas</small></div><div class="scroll"><table><thead><tr><th>Dimensión</th><th class="r">Piezas</th><th class="r">Programas</th><th>Modelos</th></tr></thead><tbody>`;
+    X.forEach(o=>h+=`<tr><td class="dimc"><span class="dimbig">${fmt(o.dim)}</span> ${U}</td><td class="r num dimbig">${fmt(o.pzs,0)}</td><td class="r num">${o.prog}</td><td class="muted">${esc([...o.usos].join(', '))}</td></tr>`);
+    h+='</tbody></table></div></div>';
+  }
+  $('consumo').innerHTML=h;
+}
+
+function showDetail(id,silent){
+  const p=H.find(x=>x.id===id); if(!p||!p.data)return;
+  selId=id;
+  document.querySelectorAll('.hist tr').forEach(tr=>tr.classList.toggle('sel',tr.dataset.id===id));
+  const d=p.data;
+  $('secDet').hidden=false;
+  $('detSub').textContent=`${p.folio} · ${p.estado}`;
+  const muebles=`<div class="scroll" style="margin-bottom:12px"><table><thead><tr><th>SKU</th><th>Modelo</th><th class="r">Muebles</th><th class="r">Tramos estándar</th></tr></thead><tbody>${d.muebles.map(x=>`<tr><td class="sku">${esc(x.sku)}</td><td class="modelo">${esc(x.modelo)}</td><td class="r num"><b>${x.cant}</b></td><td class="r num">${fmt(x.cant*x.tramos)}</td></tr>`).join('')}</tbody></table></div>`;
+  $('detBody').innerHTML=`<div class="printhead">${printHead(p.folio,p.fecha,p.resp,d.cfg)}</div>
+    <div class="dethead noprint"><div>Folio<b>${esc(p.folio)}</b></div><div>Fecha<b>${esc(p.fecha)}</b></div><div>Responsable<b>${esc(p.resp||'—')}</b></div><div>Estado<b>${esc(p.estado)}${p.fechaCorte?' · '+esc(p.fechaCorte):''}</b></div><div>Tramo<b>${fmt(d.cfg.barra)} ${U}</b></div></div>
+    <div class="btns noprint" style="margin-bottom:12px"><button class="primary" id="detPrint">🖨️ Imprimir</button><button id="detEdit">✏️ Abrir en el programa</button><button id="detDup">📄 Duplicar como nuevo</button></div>
+    <div class="kpis">${htmlKpis(d.kpis,d.kpis.tramosStd-d.kpis.tramosOpt)}</div>
+    ${d.kpis.teoricas?.length?`<div class="alert">📐 Guardado con medidas teóricas en: ${esc(d.kpis.teoricas.join(', '))}.</div>`:''}
+    ${muebles}${htmlLista(d.lista)}<h3 style="margin:16px 0 8px">🪚 Cómo cortar cada tramo</h3>${htmlPatrones(d)}`;
+  $('detPrint').onclick=()=>{document.body.className='p-det';window.print()};
+  $('detEdit').onclick=()=>openInEditor(id);
+  $('detDup').onclick=()=>openInEditor(id,true);
+  if(!silent)$('secDet').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function openInEditor(id,asNew){
+  const p=H.find(x=>x.id===id); if(!p)return;
+  if(Object.keys(S.qty).length&&S.editId!==id&&!confirm('Se reemplazarán las cantidades del programa actual. ¿Continuar?'))return;
+  // Reconstruye las cantidades por SKU + modelo contra el catálogo vigente
+  S.qty={}; const nf=[];
+  for(const x of p.data.muebles){
+    const mo=S.catalogo.find(mm=>mm.sku===x.sku&&mm.modelo===x.modelo)||S.catalogo.find(mm=>mm.sku===x.sku);
+    if(mo)S.qty[mo.id]=x.cant;else nf.push(x.modelo);
+  }
+  S.cfg={...S.cfg,...p.data.cfg,folio:asNew?'':p.folio,fecha:asNew?today():p.fecha,resp:p.resp};
+  S.editId=asNew?null:p.id;
+  saveDraft();fillParams();renderProg();renderResults();switchTab('tabProg');
+  toast(asNew?'📄 Duplicado: revisa y guarda':'✏️ Programa '+p.folio+' abierto');
+  if(nf.length)alert('Estos modelos ya no existen en el catálogo y no se cargaron: '+nf.join(', '));
+}
+
+function setEstado(id,estado){
+  const p=H.find(x=>x.id===id); if(!p)return;
+  p.estado=estado; p.fechaCorte=estado==='Cortado'?(p.fechaCorte||today()):'';
+  p.actualizado=Date.now(); p.sync=false;
+  saveH();renderHist();toast(estado==='Cortado'?'✅ Marcado como cortado':'Estado: '+estado);
+  pushProgram(p);
+}
+function delProgram(id){
+  const p=H.find(x=>x.id===id); if(!p)return;
+  if(!confirm('¿Eliminar el programa '+p.folio+' del historial? Esta acción no se puede deshacer.'))return;
+  H=H.filter(x=>x!==p); if(!tomb.includes(id))tomb.push(id);
+  if(S.editId===id){S.editId=null;saveDraft()}
+  if(selId===id){selId=null;$('secDet').hidden=true}
+  saveH();renderHist();renderEditBanner();toast('🗑️ Programa eliminado');
+  pushDelete(id);
+}
+
+/* =====================================================================
+   SINCRONIZACIÓN (JSONP para leer, POST text/plain para escribir)
+   ===================================================================== */
+let busy=false, lastSync=0, lastErr='';
+function setSync(state,txt){$('syncDot').className='dot '+state;$('syncTxt').textContent=txt}
+function syncLabel(){
+  if(!API()){setSync('local','Solo en este equipo');return}
+  const pend=H.filter(p=>!p.sync).length+tomb.length+(ls.get(K.catDirty,false)?1:0);
+  if(lastErr){setSync('err','Sin conexión'+(pend?` · ${pend} pendientes`:''));return}
+  setSync(pend?'local':'ok',pend?`${pend} pendientes`:'Sincronizado'+(lastSync?' '+new Date(lastSync).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}):''));
+}
+function jsonp(params){
+  return new Promise((res,rej)=>{
+    const cb='jqcb_'+Date.now()+'_'+Math.floor(Math.random()*1e5);
+    const s=document.createElement('script');
+    const t=setTimeout(()=>{clean();rej(new Error('Tiempo de espera agotado'))},20000);
+    function clean(){clearTimeout(t);try{delete window[cb]}catch(e){window[cb]=undefined}s.remove()}
+    window[cb]=d=>{clean();res(d)};
+    s.onerror=()=>{clean();rej(new Error('No se pudo conectar con Apps Script'))};
+    s.src=API()+(API().includes('?')?'&':'?')+new URLSearchParams({...params,callback:cb,_:Date.now()});
+    document.head.appendChild(s);
+  });
+}
+async function post(body){
+  if(!API())return false;
+  try{await fetch(API(),{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});return true}
+  catch(e){lastErr=e.message;syncLabel();return false}
+}
+let refreshT=null;
+const refreshSoon=()=>{clearTimeout(refreshT);refreshT=setTimeout(refresh,2500)};
+async function pushProgram(p){
+  syncLabel(); if(!API())return;
+  const {sync,...clean}=p;
+  if(await post({action:'saveProgram',program:clean}))refreshSoon();
+}
+async function pushDelete(id){syncLabel(); if(API()&&await post({action:'deleteProgram',id}))refreshSoon()}
+let catT=null;
+function schedulePushCatalog(){syncLabel();if(!API())return;clearTimeout(catT);catT=setTimeout(async()=>{
+  if(await post({action:'saveCatalog',catalogo:S.catalogo})){ls.set(K.catDirty,false);refreshSoon()}},1500)}
+
+async function refresh(){
+  if(!API()){syncLabel();return}
+  if(busy)return; busy=true; setSync('busy','Sincronizando…');
+  try{
+    const r=await jsonp({action:'getAll'});
+    if(!r||!r.ok)throw new Error(r&&r.error||'Respuesta inválida');
+    lastErr=''; lastSync=Date.now();
+    // --- catálogo ---
+    const dirty=ls.get(K.catDirty,false);
+    if(Array.isArray(r.catalogo)&&r.catalogo.length&&!dirty){
+      const changed=JSON.stringify(r.catalogo)!==JSON.stringify(S.catalogo.map(mo=>({id:mo.id,sku:mo.sku,modelo:mo.modelo,tramos:parseFloat(mo.tramos)||0,cortes:mo.cortes.map(ct=>({id:ct.id,parte:ct.parte,tipo:tipoDe(ct),teo:ct.teo,real:ct.real,pzs:parseFloat(ct.pzs)||0}))})));
+      if(changed){S.catalogo=r.catalogo;saveDraft();if(!document.activeElement||!document.activeElement.closest('#cat')){renderCat()}renderProg();renderResults()}
+    } else if((!r.catalogo||!r.catalogo.length)||dirty){ schedulePushCatalog(); }
+    // --- programas ---
+    const srv=new Map((r.programas||[]).map(p=>[p.id,p]));
+    tomb=tomb.filter(id=>srv.has(id));            // borrado confirmado → se quita de la lista
+    tomb.forEach(id=>post({action:'deleteProgram',id}));
+    const merged=[]; const repush=[];
+    for(const [id,sp] of srv){
+      if(tomb.includes(id))continue;
+      const lp=H.find(x=>x.id===id);
+      if(lp&&!lp.sync&&lp.actualizado>sp.actualizado){merged.push(lp);repush.push(lp)}
+      else merged.push({...sp,sync:true});
+    }
+    for(const lp of H)if(!srv.has(lp.id)){merged.push(lp);if(!lp.sync)repush.push(lp)}
+    H=merged.filter(p=>p.data); saveH();
+    repush.forEach(p=>{const {sync,...c}=p;post({action:'saveProgram',program:c})});
+    if(repush.length||tomb.length)refreshSoon();
+    renderHist();renderEditBanner();
+  }catch(e){lastErr=e.message}
+  finally{busy=false;syncLabel();renderConn()}
+}
+
+/* ---------- pestaña conexión ---------- */
+function renderConn(){
+  $('apiUrl').value=ls.get(K.api,'')||API_DEFAULT;
+  const pend=H.filter(p=>!p.sync).length;
+  $('connInfo').innerHTML=!API()?'Modo local: sin URL configurada.':
+    `${lastErr?'⛔ '+esc(lastErr):'✅ Conectado'} · Última sincronización: ${lastSync?new Date(lastSync).toLocaleString('es-MX'):'—'} · Programas pendientes de subir: ${pend}`;
+}
+$('btnSaveUrl').onclick=()=>{const v=$('apiUrl').value.trim();
+  if(v&&!/^https:\/\/script\.google(usercontent)?\.com\//.test(v)){toast('La URL debe ser de script.google.com');return}
+  ls.set(K.api,v);lastErr='';toast(v?'URL guardada':'Modo local');refresh()};
+$('btnTest').onclick=async()=>{if(!API()){toast('Primero guarda la URL');return}
+  try{const r=await jsonp({action:'ping'});toast(r.ok?'✅ Conexión correcta':'⛔ '+r.error)}catch(e){toast('⛔ '+e.message)}};
+$('btnSyncNow').onclick=refresh; $('syncBtn').onclick=refresh;
+
+/* ---------- pestañas ---------- */
+function switchTab(id){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id));
+  document.querySelectorAll('.tab').forEach(t=>t.hidden=t.id!==id);
+  if(id==='tabHist')renderHist(); if(id==='tabConf')renderConn();
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+
+/* ---------- arranque ---------- */
+fillParams();renderCat();renderProg();renderResults();renderHist();syncLabel();
+refresh();
+setInterval(()=>{if(document.visibilityState==='visible')refresh()},POLL_MS);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh()});
+window.__jq={get S(){return S},get H(){return H},refresh,compute};
+})();
+</script>
+</body>
+</html>
