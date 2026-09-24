@@ -160,6 +160,8 @@ tr.grp td{border-top:2px solid var(--ink)}
 .bar .pc b{font-size:12px;opacity:.95}
 .bar .pc.F{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.28) 0 4px,transparent 4px 9px);border-top:4px solid rgba(0,0,0,.25)}
 .bar .trim{background:var(--ink);opacity:.55}
+.bar .pc{border-right:0}
+.bar .pc.flip{filter:brightness(.85)}
 .pat .meta{grid-column:2;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px}
 .pat .meta b{color:var(--ink);font-weight:600}
 
@@ -210,6 +212,32 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px}
   input.qty{border:0;background:none}
   .wrap{max-width:none;padding:0}
 }
+/* hoja de corte impresa */
+#printSheet{display:none}
+@media print{
+  body.printing .wrap,body.printing .toast{display:none!important}
+  body.printing #printSheet{display:block}
+  @page{margin:12mm}
+}
+#printSheet{font:12px/1.35 "Barlow",Arial,sans-serif;color:#000}
+#printSheet h2{font:700 20px "Barlow Condensed","Arial Narrow",sans-serif;margin:0 0 6px}
+#printSheet h3{font:700 15px "Barlow Condensed","Arial Narrow",sans-serif;margin:12px 0 4px;display:flex;align-items:center;gap:8px}
+#printSheet .ph{display:grid;grid-template-columns:repeat(4,1fr);border:1.5px solid #000;margin-bottom:4px}
+#printSheet .ph div{padding:4px 6px;border-right:1px solid #000;font-size:11px}
+#printSheet .ph div:last-child{border-right:0}
+#printSheet .ph b{display:block;font-size:14px}
+#printSheet .note{font-size:11px;margin:0 0 8px}
+#printSheet table{border-collapse:collapse;width:100%;font-size:12px;min-width:0}
+#printSheet th{background:#E6E6E6!important;color:#000;border:1px solid #000;padding:3px 6px;text-align:left;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#printSheet td{border:1px solid #000;padding:3px 6px}
+#printSheet td.r,#printSheet th.r{text-align:right}
+#printSheet .med{font:700 16px "Barlow Condensed","Arial Narrow",sans-serif}
+#printSheet .chkbox{width:14px;height:14px;border:1.5px solid #000;display:inline-block}
+#printSheet .tb{display:inline-block;padding:1px 8px;color:#fff;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+#printSheet .tb.C{background:#1B5E9E;border-radius:2px}
+#printSheet .tb.F{background:#C2410C;border-radius:10px}
+#printSheet .firmas{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;font-size:11px;text-align:center}
+#printSheet .firmas div{border-top:1px solid #000;padding-top:3px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -244,6 +272,9 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px}
     <label>Largo del tramo (cm)<input id="pBarra" type="number" min="1" step="any"></label>
     <label>Espesor de corte (cm)<input id="pKerf" type="number" min="0" step="any"></label>
     <label>Despunte por tramo (cm)<input id="pTrim" type="number" min="0" step="any"></label>
+    <label title="Ancho de la cara del junquillo que se corta a 45°">📐 Ancho del junquillo (cm)<input id="pAncho" type="number" min="0" step="any"></label>
+    <label>Medida referida a<select id="pRef"><option value="larga">Punta larga</option><option value="corta">Punta corta</option></select></label>
+    <label title="Encontrados: se alterna +45°/−45° y dos piezas comparten el mismo corte">Acomodo de cortes 45°<select id="pModo"><option value="indep">Independientes</option><option value="enc">Encontrados (comparten corte)</option></select></label>
   </section>
 
   <div class="btns" style="margin-bottom:12px">
@@ -356,6 +387,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:8px}
 <footer>Línea Italia · Ingeniería de Procesos</footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="printSheet"></div>
 
 <script>
 (function(){
@@ -399,8 +431,9 @@ const baseCatalog=()=>[
 ];
 
 /* ---------- estado ---------- */
-const newCfg=()=>({barra:366,kerf:0.3,trim:0,folio:'',fecha:today(),resp:''});
+const newCfg=()=>({barra:366,kerf:0.3,trim:0,ancho:0,ref:'larga',modo:'indep',folio:'',fecha:today(),resp:''});
 let S=ls.get(K.draft,null)||{cfg:newCfg(),catalogo:baseCatalog(),qty:{},editId:null};
+S.cfg={...newCfg(),...S.cfg};     // agrega parámetros nuevos a borradores anteriores
 let H=ls.get(K.hist,[]);            // historial local (espejo del servidor + pendientes)
 let tomb=ls.get(K.tomb,[]);         // IDs borrados pendientes de confirmar
 let selId=null;
@@ -417,7 +450,7 @@ const API=()=>ls.get(K.api,'')||API_DEFAULT;
    CÁLCULO
    ===================================================================== */
 function compute(){
-  const cfg=S.cfg, cap=cfg.barra-cfg.trim, kerf=cfg.kerf;
+  const cfg=S.cfg, cap=cfg.barra-cfg.trim, g45=geo45(cfg);
   const dims=new Map(); let tramosStd=0, muebles=0; const faltan=[], teoricas=new Set(), mueblesList=[];
   for(const mo of S.catalogo){
     const q=parseInt(S.qty[mo.id])||0; if(!q)continue;
@@ -436,14 +469,15 @@ function compute(){
   const lista=[...dims.values()].sort((a,b)=>b.dim-a.dim);
   const cnt={C:0,F:0};
   lista.forEach(o=>{const i=cnt[o.tipo]++;o.code=o.tipo+(i+1);o.color=PAL[o.tipo][i%PAL[o.tipo].length];
-    const pt=Math.floor((cap+kerf)/(o.dim+kerf));o.porTramo=pt;o.tramos=pt>0?o.pzs/pt:Infinity});
-  const largas=lista.filter(o=>o.dim>cap);
+    o.largo=g45.largo(o.dim);   // largo que ocupa en el tramo (punta larga)
+    const pt=Math.floor((cap+g45.gap)/(o.largo+g45.gap));o.porTramo=pt;o.tramos=pt>0?o.pzs/pt:Infinity});
+  const largas=lista.filter(o=>o.largo>cap);
   const bars=[];
   if(!largas.length){
     for(const o of lista)for(let i=0;i<o.pzs;i++){
-      let b=bars.find(b=>b.used+(b.cuts.length?kerf:0)+o.dim<=cap+1e-9);
+      let b=bars.find(b=>b.used+(b.cuts.length?g45.gap:0)+o.largo<=cap+1e-9);
       if(!b){b={cuts:[],used:0};bars.push(b)}
-      b.used+=(b.cuts.length?kerf:0)+o.dim;b.cuts.push(o);
+      b.used+=(b.cuts.length?g45.gap:0)+o.largo;b.cuts.push(o);
     }
   }
   const pats=new Map();
@@ -451,18 +485,31 @@ function compute(){
     if(!pats.has(k))pats.set(k,{cuts:b.cuts,used:b.used,n:0});pats.get(k).n++}
   const patrones=[...pats.values()].sort((a,b)=>b.n-a.n||b.used-a.used);
   const totalPz=lista.reduce((s,o)=>s+o.pzs,0);
-  const util=lista.reduce((s,o)=>s+o.pzs*o.dim,0);
+  const util=bars.reduce((s,b)=>s+b.used,0);   // material consumido por las piezas y sus cortes
   const aprov=bars.length?util/(bars.length*cfg.barra):0;
   return{lista,patrones,muebles:mueblesList,faltan,largas,cap,
     kpis:{muebles,totalPz,tramosOpt:bars.length,tramosStd,aprov,teoricas:[...teoricas]}};
 }
 
+/* Geometría de cortes a 45°
+   · El disco a 45° consume a lo largo del tramo: espesor × √2
+   · Punta corta → punta larga: + 2 × ancho del junquillo
+   · Encontrados: al alternar +45°/−45°, cada pieza comparte el corte con la anterior y
+     se traslapa un "ancho" sobre el tramo. Independientes: cada pieza lleva sus dos cortes. */
+function geo45(cfg){
+  const w=parseFloat(cfg.ancho)||0, k=(parseFloat(cfg.kerf)||0)*Math.SQRT2;
+  return{w,k,modo:cfg.modo==='enc'?'enc':'indep',
+    gap:cfg.modo==='enc'?k-w:k,
+    largo:d=>cfg.ref==='corta'?d+2*w:d};
+}
+const desc45=cfg=>`Cortes a 45° · ${cfg.modo==='enc'?'encontrados':'independientes'} · medida a punta ${cfg.ref==='corta'?'corta':'larga'}${parseFloat(cfg.ancho)>0?' · ancho '+fmt(cfg.ancho)+' cm':''}`;
+
 /* Instantánea serializable (se guarda en historial y en Sheets) */
 function snapshot(R){
   return{
-    cfg:{barra:S.cfg.barra,kerf:S.cfg.kerf,trim:S.cfg.trim},
+    cfg:{barra:S.cfg.barra,kerf:S.cfg.kerf,trim:S.cfg.trim,ancho:S.cfg.ancho,ref:S.cfg.ref,modo:S.cfg.modo},
     muebles:R.muebles,
-    lista:R.lista.map(o=>({code:o.code,tipo:o.tipo,dim:o.dim,pzs:o.pzs,porTramo:o.porTramo,tramos:isFinite(o.tramos)?+o.tramos.toFixed(4):0,teo:o.teo,color:o.color,usos:[...o.usos]})),
+    lista:R.lista.map(o=>({code:o.code,tipo:o.tipo,dim:o.dim,largo:o.largo,pzs:o.pzs,porTramo:o.porTramo,tramos:isFinite(o.tramos)?+o.tramos.toFixed(4):0,teo:o.teo,color:o.color,usos:[...o.usos]})),
     patrones:R.patrones.map(p=>({n:p.n,used:+p.used.toFixed(3),cuts:p.cuts.map(o=>o.code)})),
     kpis:R.kpis
   };
@@ -478,8 +525,18 @@ function htmlKpis(k,ahorro){
   <div class="kpi"><b>${fmt(k.tramosStd,2)}</b><span>tramos según estándar</span></div>
   <div class="kpi ${k.aprov>=.9?'good':'warn'}"><b>${k.tramosOpt?fmt(k.aprov*100,1)+'%':'—'}</b><span>aprovechamiento${ahorro>0.005?` · ahorro ${fmt(ahorro)} tramos`:''}</span></div>`;
 }
+/* Total por medida sin importar modelo ni tipo: suma todas las piezas con la misma medida */
+function totalesPorMedida(lista){
+  const m=new Map();
+  for(const o of lista){const k=(+o.dim).toFixed(3);
+    if(!m.has(k))m.set(k,{dim:o.dim,pzs:0,codes:[],tipos:new Set(),usos:new Set()});
+    const t=m.get(k);t.pzs+=o.pzs;t.codes.push(o.code);t.tipos.add(o.tipo);(o.usos||[]).forEach(u=>t.usos.add(u))}
+  return[...m.values()].sort((a,b)=>b.dim-a.dim);
+}
 function htmlLista(lista){
   let h='';
+  const tot=totalesPorMedida(lista), mix=tot.filter(t=>t.tipos.size>1);
+  if(mix.length)h+=`<div class="alert info">Σ Medidas que se repiten en cubierta y frontal: ${mix.map(t=>`<b>${fmt(t.dim)} cm = ${fmt(t.pzs,0)} pzs</b> (${t.codes.join(' + ')})`).join(' · ')}</div>`;
   for(const tp of ['C','F']){
     const L=lista.filter(o=>o.tipo===tp); if(!L.length)continue;
     const pz=L.reduce((x,o)=>x+o.pzs,0), tr=L.reduce((x,o)=>x+(o.tramos||0),0);
@@ -495,16 +552,20 @@ function htmlLista(lista){
 }
 function htmlPatrones(snap){
   const byCode=Object.fromEntries(snap.lista.map(o=>[o.code,o]));
-  const B=snap.cfg.barra, T=snap.cfg.trim||0;
+  const B=snap.cfg.barra, T=snap.cfg.trim||0, g=geo45(snap.cfg);
   const total=snap.patrones.reduce((s,p)=>s+p.n,0);
-  let h=`<p class="muted" style="margin:0 0 6px">Corta <b>${total}</b> tramos de ${fmt(B)} ${U}. Cada franja es un tramo; el número de la izquierda indica cuántas veces se repite ese acomodo. La zona rayada gris es sobrante.</p>`;
+  let h=`<p class="muted" style="margin:0 0 6px">Corta <b>${total}</b> tramos de ${fmt(B)} ${U}. ${desc45(snap.cfg)}. Cada franja es un tramo; el número de la izquierda indica cuántas veces se repite ese acomodo. La zona rayada gris es sobrante.</p>`;
   h+='<div class="legend">'+['C','F'].map(tp=>{const L=snap.lista.filter(o=>o.tipo===tp);if(!L.length)return'';
     return `<div class="grp"><span class="tipo ${tp}"><span class="ico ${tp}"></span>${TIPO[tp]}</span>${L.map(o=>`<span class="it"><span class="code ${tp}" style="background-color:${o.color}">${o.code}</span>${fmt(o.dim)}</span>`).join('')}</div>`}).join('')+'</div>';
   snap.patrones.forEach((p,i)=>{
     const cuts=p.cuts.map(cd=>byCode[cd]).filter(Boolean);
     const sob=B-T-p.used;
     const segs=(T>0?`<div class="pc trim" style="flex:0 0 ${T/B*100}%" title="Despunte"></div>`:'')+
-      cuts.map(o=>`<div class="pc ${o.tipo}" style="flex:0 0 ${o.dim/B*100}%;background-color:${o.color}" title="${o.code} · ${TIPO[o.tipo]} · ${fmt(o.dim)} ${U}"><b>${o.code}</b>${fmt(o.dim)}</div>`).join('');
+      cuts.map((o,j)=>{const L=o.largo||o.dim, wp=Math.min(g.w/L*100,45).toFixed(3);
+        const up=g.modo==='indep'||j%2===0;   // encontrados: se alterna la orientación del trapecio
+        const clip=up?`polygon(0 0,100% 0,${100-wp}% 100%,${wp}% 100%)`:`polygon(${wp}% 0,${100-wp}% 0,100% 100%,0 100%)`;
+        const ml=j?`margin-left:${g.gap/B*100}%;`:'';
+        return `<div class="pc ${o.tipo}${up?'':' flip'}" style="flex:0 0 ${L/B*100}%;${ml}background-color:${o.color};clip-path:${clip}" title="${o.code} · ${TIPO[o.tipo]} · ${fmt(o.dim)} ${U}"><b>${o.code}</b>${fmt(o.dim)}</div>`}).join('');
     const cnt=new Map();cuts.forEach(o=>cnt.set(o,(cnt.get(o)||0)+1));
     const desc=[...cnt].map(([o,n])=>`${n} × ${o.code} (${fmt(o.dim)})`).join(' + ');
     const descH=[...cnt].map(([o,n])=>`${n} × <span class="code ${o.tipo}" style="background-color:${o.color};height:18px;min-width:28px">${o.code}</span> ${fmt(o.dim)}`).join(' + ');
@@ -518,7 +579,7 @@ function htmlPatrones(snap){
 /* =====================================================================
    PESTAÑA PROGRAMA
    ===================================================================== */
-const P={pFolio:'folio',pFecha:'fecha',pResp:'resp',pBarra:'barra',pKerf:'kerf',pTrim:'trim'};
+const P={pFolio:'folio',pFecha:'fecha',pResp:'resp',pBarra:'barra',pKerf:'kerf',pTrim:'trim',pAncho:'ancho',pRef:'ref',pModo:'modo'};
 function fillParams(){for(const [id,k] of Object.entries(P))$(id).value=S.cfg[k]??''}
 for(const [id,k] of Object.entries(P)){
   $(id).addEventListener('change',()=>{const el=$(id);S.cfg[k]=el.type==='number'?parseFloat(el.value)||0:el.value;saveDraft();renderResults()});
@@ -592,7 +653,7 @@ function doSave(){
 
 $('btnNew').onclick=()=>{
   if(Object.keys(S.qty).length&&!S.editId&&!confirm('Hay cantidades sin guardar. ¿Empezar un programa nuevo?'))return;
-  const b=S.cfg;S.cfg={...newCfg(),barra:b.barra,kerf:b.kerf,trim:b.trim,resp:b.resp};S.qty={};S.editId=null;
+  const b=S.cfg;S.cfg={...newCfg(),barra:b.barra,kerf:b.kerf,trim:b.trim,ancho:b.ancho,ref:b.ref,modo:b.modo,resp:b.resp};S.qty={};S.editId=null;
   saveDraft();fillParams();renderProg();renderResults();
 };
 
@@ -609,11 +670,32 @@ $('btnCopy').onclick=async()=>{
 function printHead(folio,fecha,resp,cfg){
   return `<div>Programa<b>${esc(folio||'—')}</b></div><div>Fecha<b>${esc(fecha||'—')}</b></div><div>Responsable<b>${esc(resp||'—')}</b></div><div>Tramo<b>${fmt(cfg.barra)} ${U} · corte ${fmt(cfg.kerf)}</b></div>`;
 }
-$('btnPrint').onclick=()=>{
-  $('printhead').innerHTML=printHead(S.cfg.folio,S.cfg.fecha,S.cfg.resp,S.cfg);
-  document.body.className='p-prog';window.print();
-};
-window.addEventListener('afterprint',()=>document.body.className='');
+/* Hoja impresa: encabezado, muebles programados y cortes a realizar */
+function printSheet(meta,snap){
+  const byT=tp=>snap.lista.filter(o=>o.tipo===tp);
+  const tabla=tp=>{const L=byT(tp);if(!L.length)return'';
+    return `<h3><span class="tb ${tp}">${TIPO[tp].toUpperCase()}</span>${fmt(L.reduce((s,o)=>s+o.pzs,0),0)} piezas</h3>
+    <table><thead><tr><th style="width:60px">Código</th><th>Medida (cm)</th><th class="r" style="width:70px">Piezas</th><th>Modelos</th><th style="width:60px">Cortado</th></tr></thead><tbody>
+    ${L.map(o=>`<tr><td><b>${o.code}</b></td><td><span class="med">${fmt(o.dim)}</span>${o.teo?' (teórica)':''}</td><td class="r med">${fmt(o.pzs,0)}</td><td>${esc((o.usos||[]).join(', '))}</td><td style="text-align:center"><span class="chkbox"></span></td></tr>`).join('')}
+    </tbody></table>`};
+  const k=snap.kpis||{};
+  $('printSheet').innerHTML=`<h2>Programa de corte de junquillo</h2>
+    <div class="ph"><div>Programa<b>${esc(meta.folio||'(sin guardar)')}</b></div><div>Fecha<b>${esc(meta.fecha||'—')}</b></div><div>Responsable<b>${esc(meta.resp||'—')}</b></div><div>Tramos a cortar<b>${fmt(k.tramosOpt,0)} de ${fmt(snap.cfg.barra)} cm</b></div></div>
+    <p class="note">${esc(desc45(snap.cfg))} · Disco ${fmt(snap.cfg.kerf)} cm</p>
+    <h3>Muebles programados</h3>
+    <table><thead><tr><th>SKU</th><th>Modelo</th><th class="r" style="width:90px">Cantidad</th></tr></thead><tbody>
+    ${snap.muebles.map(x=>`<tr><td>${esc(x.sku)}</td><td>${esc(x.modelo)}</td><td class="r med">${x.cant}</td></tr>`).join('')}
+    <tr><td colspan="2"><b>Total</b></td><td class="r med">${fmt(k.muebles,0)}</td></tr></tbody></table>
+    ${tabla('C')}${tabla('F')}
+    ${(()=>{const tot=totalesPorMedida(snap.lista);return `<h3>Σ Total por medida</h3>
+    <table><thead><tr><th>Medida (cm)</th><th class="r" style="width:90px">Piezas</th><th>Códigos</th></tr></thead><tbody>
+    ${tot.map(t=>`<tr><td class="med">${fmt(t.dim)}</td><td class="r med">${fmt(t.pzs,0)}</td><td>${t.codes.join(' + ')}</td></tr>`).join('')}
+    <tr><td><b>Total piezas</b></td><td class="r med">${fmt(tot.reduce((s,t)=>s+t.pzs,0),0)}</td><td></td></tr></tbody></table>`})()}
+    <div class="firmas"><div>Cortó</div><div>Revisó</div></div>`;
+  document.body.classList.add('printing');window.print();
+}
+window.addEventListener('afterprint',()=>{document.body.classList.remove('printing');document.body.className=''});
+$('btnPrint').onclick=()=>{const R=compute();if(!R.kpis.totalPz){toast('Captura al menos un mueble');return}printSheet(S.cfg,snapshot(R))};
 
 /* =====================================================================
    PESTAÑA VISTA PREVIA
@@ -664,6 +746,7 @@ function renderPreviewOut(){
     {st:!nt?'err':(pend?'warn':'ok'),i:'📐',t:'Medidas reales',d:nt?`${nr} de ${nt} piezas rectificadas${pend?' · faltan '+pend:''}`:'—'},
     {st:R.largas.length?'err':'ok',i:'📏',t:'Largo de piezas',d:R.largas.length?`${R.largas.length} medidas exceden el tramo útil (${fmt(R.cap)} cm)`:`Todas caben en el tramo de ${fmt(S.cfg.barra)} cm`},
     {st:!k.tramosOpt?'warn':(k.aprov>=.9?'ok':'warn'),i:'♻️',t:'Aprovechamiento',d:k.tramosOpt?`${fmt(k.aprov*100,1)}% · ${fmt(k.tramosOpt,0)} tramos (estándar ${fmt(k.tramosStd)})`:'—'},
+    {st:(S.cfg.modo==='enc'||S.cfg.ref==='corta')&&!(parseFloat(S.cfg.ancho)>0)?'warn':'ok',i:'📐',t:'Cortes a 45°',d:(S.cfg.modo==='enc'||S.cfg.ref==='corta')&&!(parseFloat(S.cfg.ancho)>0)?'Captura el ancho del junquillo en la pestaña Programa':desc45(S.cfg).replace('Cortes a 45° · ','')},
     {st:S.cfg.resp?'ok':'warn',i:'👤',t:'Responsable',d:S.cfg.resp||'Sin capturar (pestaña Programa)'},
     {st:'ok',i:'🏷️',t:'Folio',d:S.cfg.folio||'Se asigna al guardar'}
   ];
@@ -682,7 +765,7 @@ function renderPreviewOut(){
 $('btnPreview').onclick=()=>switchTab('tabPrev');
 $('prevBack').onclick=()=>switchTab('tabProg');
 $('prevSave').onclick=()=>doSave();
-$('prevPrint').onclick=()=>{renderPreviewOut();document.body.className='p-prev';window.print()};
+$('prevPrint').onclick=()=>{const R=compute();if(!R.kpis.totalPz){toast('Captura al menos un mueble');return}printSheet(S.cfg,snapshot(R))};
 
 /* =====================================================================
    PESTAÑA MEDIDAS
@@ -813,7 +896,7 @@ function showDetail(id,silent){
     <div class="kpis">${htmlKpis(d.kpis,d.kpis.tramosStd-d.kpis.tramosOpt)}</div>
     ${d.kpis.teoricas?.length?`<div class="alert">📐 Guardado con medidas teóricas en: ${esc(d.kpis.teoricas.join(', '))}.</div>`:''}
     ${muebles}${htmlLista(d.lista)}<h3 style="margin:16px 0 8px">🪚 Cómo cortar cada tramo</h3>${htmlPatrones(d)}`;
-  $('detPrint').onclick=()=>{document.body.className='p-det';window.print()};
+  $('detPrint').onclick=()=>printSheet(p,p.data);
   $('detEdit').onclick=()=>openInEditor(id);
   $('detDup').onclick=()=>openInEditor(id,true);
   if(!silent)$('secDet').scrollIntoView({behavior:'smooth',block:'start'});
