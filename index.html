@@ -94,6 +94,16 @@ details.sec>summary small{font:400 13px "Barlow",sans-serif;color:var(--muted)}
 .scroll>table.cat{min-width:980px}
 td.qtyc{width:110px;min-width:110px}
 input.qty{width:90px;display:block;margin:0 auto}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;white-space:nowrap}
+.seg button{border:0;border-radius:0;padding:4px 8px;font-size:12px;background:var(--panel);color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button .ico{width:12px;height:7px}
+.seg button .ico.F{height:4px}
+.seg button[aria-pressed="true"]{background:var(--steel);color:#fff}
+.seg button.C[aria-pressed="true"]{background:var(--cub)}
+.seg button.F[aria-pressed="true"]{background:var(--frt)}
+.seg button[aria-pressed="true"] .ico{border-color:#fff}
+.seg button.F[aria-pressed="true"] .ico{background:repeating-linear-gradient(45deg,#fff 0 2px,transparent 2px 4px)}
 .teo-fixed{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font:600 16px "Barlow Condensed","Arial Narrow",sans-serif;white-space:nowrap}
 .teo-fixed::before{content:"🔒";font-size:11px;opacity:.7}
 input.real{background:var(--green-soft);border-color:var(--green);font-weight:700;width:90px}
@@ -411,6 +421,12 @@ const uid=p=>(p||'')+Date.now().toString(36)+Math.random().toString(36).slice(2,
 const today=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)};
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const tipoDe=ct=>ct.tipo||(/frontal/i.test(ct.parte)?'F':'C');
+const PARTE={A:'Cubierta y frontal',C:'Solo cubierta',F:'Solo frontal'};
+const tiposDe=mo=>new Set(mo.cortes.map(tipoDe));
+// Parte vigente: si el modelo solo tiene un tipo de pieza, se ignora la selección
+const parteDe=mo=>{const t=tiposDe(mo),p=S.parts[mo.id]||'A';return t.size>1?p:'A'};
+const incluye=(mo,ct)=>{const p=parteDe(mo);return p==='A'||tipoDe(ct)===p};
+const parteTxt=x=>x.parte&&x.parte!=='A'?PARTE[x.parte]:'Ambos';
 const medida=ct=>{const r=parseFloat(ct.real);if(r>0)return{v:r,real:true};const t=parseFloat(ct.teo);return{v:t>0?t:NaN,real:false}};
 function toast(t){const el=$('toast');el.textContent=t;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2200)}
 
@@ -433,7 +449,8 @@ const baseCatalog=()=>[
 /* ---------- estado ---------- */
 const newCfg=()=>({barra:366,kerf:0.3,trim:0,ancho:0,ref:'larga',modo:'indep',folio:'',fecha:today(),resp:''});
 let S=ls.get(K.draft,null)||{cfg:newCfg(),catalogo:baseCatalog(),qty:{},editId:null};
-S.cfg={...newCfg(),...S.cfg};     // agrega parámetros nuevos a borradores anteriores
+S.cfg={...newCfg(),...S.cfg};
+S.parts=S.parts||{};               // partes a cortar por modelo: A=ambas, C=solo cubierta, F=solo frontal     // agrega parámetros nuevos a borradores anteriores
 let H=ls.get(K.hist,[]);            // historial local (espejo del servidor + pendientes)
 let tomb=ls.get(K.tomb,[]);         // IDs borrados pendientes de confirmar
 let selId=null;
@@ -454,9 +471,15 @@ function compute(){
   const dims=new Map(); let tramosStd=0, muebles=0; const faltan=[], teoricas=new Set(), mueblesList=[];
   for(const mo of S.catalogo){
     const q=parseInt(S.qty[mo.id])||0; if(!q)continue;
-    muebles+=q; tramosStd+=q*(parseFloat(mo.tramos)||0);
-    mueblesList.push({sku:mo.sku,modelo:mo.modelo,cant:q,tramos:parseFloat(mo.tramos)||0});
+    // Si solo se corta una parte, el estándar se prorratea por la longitud de las piezas incluidas
+    const tb=parseFloat(mo.tramos)||0, parte=parteDe(mo);
+    const lenT=mo.cortes.reduce((s,ct)=>s+(medida(ct).v||0)*(parseFloat(ct.pzs)||0),0);
+    const lenP=mo.cortes.filter(ct=>incluye(mo,ct)).reduce((s,ct)=>s+(medida(ct).v||0)*(parseFloat(ct.pzs)||0),0);
+    const tEf=parte==='A'||!lenT?tb:tb*lenP/lenT;
+    muebles+=q; tramosStd+=q*tEf;
+    mueblesList.push({sku:mo.sku,modelo:mo.modelo,cant:q,tramos:+tEf.toFixed(4),tramosBase:tb,parte});
     for(const ct of mo.cortes){
+      if(!incluye(mo,ct))continue;
       const md=medida(ct), d=md.v, p=(parseFloat(ct.pzs)||0)*q;
       if(!(d>0)){faltan.push(mo.modelo+' · '+ct.parte);continue}
       if(!md.real)teoricas.add(mo.modelo);
@@ -585,16 +608,34 @@ for(const [id,k] of Object.entries(P)){
   $(id).addEventListener('change',()=>{const el=$(id);S.cfg[k]=el.type==='number'?parseFloat(el.value)||0:el.value;saveDraft();renderResults()});
 }
 
+// Selector Ambos / Cubierta / Frontal (solo para modelos con los dos tipos de pieza)
+function partSel(mo){
+  const t=tiposDe(mo);
+  if(t.size<2){const tp=[...t][0]||'C';return `<span class="tipo ${tp}" style="font-size:13px"><span class="ico ${tp}"></span>${TIPO[tp]}</span>`}
+  const p=parteDe(mo);
+  return `<div class="seg" role="group" aria-label="Partes a cortar de ${esc(mo.modelo)}">
+    <button data-part="A" data-pm="${mo.id}" aria-pressed="${p==='A'}" title="Cubierta y frontal">Ambos</button>
+    <button data-part="C" data-pm="${mo.id}" aria-pressed="${p==='C'}" class="C" title="Solo cubierta"><span class="ico C"></span>Cub.</button>
+    <button data-part="F" data-pm="${mo.id}" aria-pressed="${p==='F'}" class="F" title="Solo frontal"><span class="ico F"></span>Front.</button></div>`;
+}
 function renderProg(){
-  let h='<table><thead><tr><th class="c">N.º de muebles</th><th>SKU</th><th>Modelo</th><th class="r">Tramos por mueble</th><th class="r">Tramos estándar</th><th class="c">Medidas</th></tr></thead><tbody>';
+  let h='<table><thead><tr><th class="c">N.º de muebles</th><th>SKU</th><th>Modelo</th><th class="c">Cortar</th><th class="r">Tramos por mueble</th><th class="r">Tramos estándar</th><th class="c">Medidas</th></tr></thead><tbody>';
   for(const mo of S.catalogo){
     const nr=mo.cortes.filter(ct=>medida(ct).real).length, nt=mo.cortes.length;
     h+=`<tr class="grp"><td class="c qtyc"><input class="qty" type="number" min="0" step="1" data-q="${mo.id}" value="${S.qty[mo.id]||''}" placeholder="0" aria-label="Muebles ${esc(mo.modelo)}"></td>
     <td class="sku">${esc(mo.sku)}</td><td class="modelo">${esc(mo.modelo)}</td>
+    <td class="c">${partSel(mo)}</td>
     <td class="r num">${fmt(mo.tramos,3)}</td><td class="r num" data-std="${mo.id}">—</td>
     <td class="c">${nt&&nr===nt?'<span class="tag ok">✓ reales</span>':`<span class="tag bad">◐ ${nr}/${nt} rectificadas</span>`}</td></tr>`;
   }
   $('prog').innerHTML=h+'</tbody></table>';
+  $('prog').querySelectorAll('[data-part]').forEach(b=>b.onclick=()=>{
+    S.parts[b.dataset.pm]=b.dataset.part; if(b.dataset.part==='A')delete S.parts[b.dataset.pm];
+    saveDraft();
+    b.parentElement.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+    renderResults();
+    if(!$('tabPrev').hidden)renderPreviewMed();
+  });
   $('prog').querySelectorAll('input[data-q]').forEach(el=>el.addEventListener('input',()=>{
     const v=parseInt(el.value);if(v>0)S.qty[el.dataset.q]=v;else delete S.qty[el.dataset.q];saveDraft();renderResults()}));
 }
@@ -603,7 +644,7 @@ let lastR=null;
 function renderResults(){
   const R=compute(); lastR=R;
   for(const mo of S.catalogo){const cell=document.querySelector(`[data-std="${mo.id}"]`);
-    if(cell){const q=parseInt(S.qty[mo.id])||0;cell.textContent=q?fmt(q*mo.tramos,2):'—'}}
+    if(cell){const x=R.muebles.find(m=>m.sku===mo.sku&&m.modelo===mo.modelo);cell.textContent=x?fmt(x.cant*x.tramos,2):'—'}}
   $('kpis').innerHTML=htmlKpis(R.kpis,R.kpis.tramosStd-R.kpis.tramosOpt);
   let al='';
   if(R.kpis.teoricas.length)al+=`<div class="alert">📐 Se están usando medidas teóricas en: ${esc(R.kpis.teoricas.join(', '))}. Rectifícalas en la pestaña Medidas antes de liberar el programa.</div>`;
@@ -653,7 +694,7 @@ function doSave(){
 
 $('btnNew').onclick=()=>{
   if(Object.keys(S.qty).length&&!S.editId&&!confirm('Hay cantidades sin guardar. ¿Empezar un programa nuevo?'))return;
-  const b=S.cfg;S.cfg={...newCfg(),barra:b.barra,kerf:b.kerf,trim:b.trim,ancho:b.ancho,ref:b.ref,modo:b.modo,resp:b.resp};S.qty={};S.editId=null;
+  const b=S.cfg;S.cfg={...newCfg(),barra:b.barra,kerf:b.kerf,trim:b.trim,ancho:b.ancho,ref:b.ref,modo:b.modo,resp:b.resp};S.qty={};S.parts={};S.editId=null;
   saveDraft();fillParams();renderProg();renderResults();
 };
 
@@ -683,9 +724,9 @@ function printSheet(meta,snap){
     <div class="ph"><div>Programa<b>${esc(meta.folio||'(sin guardar)')}</b></div><div>Fecha<b>${esc(meta.fecha||'—')}</b></div><div>Responsable<b>${esc(meta.resp||'—')}</b></div><div>Tramos a cortar<b>${fmt(k.tramosOpt,0)} de ${fmt(snap.cfg.barra)} cm</b></div></div>
     <p class="note">${esc(desc45(snap.cfg))} · Disco ${fmt(snap.cfg.kerf)} cm</p>
     <h3>Muebles programados</h3>
-    <table><thead><tr><th>SKU</th><th>Modelo</th><th class="r" style="width:90px">Cantidad</th></tr></thead><tbody>
-    ${snap.muebles.map(x=>`<tr><td>${esc(x.sku)}</td><td>${esc(x.modelo)}</td><td class="r med">${x.cant}</td></tr>`).join('')}
-    <tr><td colspan="2"><b>Total</b></td><td class="r med">${fmt(k.muebles,0)}</td></tr></tbody></table>
+    <table><thead><tr><th>SKU</th><th>Modelo</th><th>Cortar</th><th class="r" style="width:90px">Cantidad</th></tr></thead><tbody>
+    ${snap.muebles.map(x=>`<tr><td>${esc(x.sku)}</td><td>${esc(x.modelo)}</td><td>${x.parte&&x.parte!=='A'?'<b>'+PARTE[x.parte].toUpperCase()+'</b>':'Cubierta y frontal'}</td><td class="r med">${x.cant}</td></tr>`).join('')}
+    <tr><td colspan="3"><b>Total</b></td><td class="r med">${fmt(k.muebles,0)}</td></tr></tbody></table>
     ${tabla('C')}${tabla('F')}
     ${(()=>{const tot=totalesPorMedida(snap.lista);return `<h3>Σ Total por medida</h3>
     <table><thead><tr><th>Medida (cm)</th><th class="r" style="width:90px">Piezas</th><th>Códigos</th></tr></thead><tbody>
@@ -710,8 +751,9 @@ function renderPreviewMed(){
   let h='<table class="pm"><thead><tr><th>Modelo</th><th>Tipo</th><th>Parte</th><th class="r">Teórica (cm)</th><th class="r">Real (cm)</th><th class="r">Diferencia</th><th class="r">Pzs × mueble</th><th class="r">Pzs totales</th></tr></thead><tbody>';
   for(const mo of L){
     const q=parseInt(S.qty[mo.id])||0;
-    h+=`<tr class="mh"><td colspan="8">${esc(mo.sku)} · ${esc(mo.modelo)} <span class="muted" style="font-weight:400">× ${q} muebles</span></td></tr>`;
+    h+=`<tr class="mh"><td colspan="8">${esc(mo.sku)} · ${esc(mo.modelo)} <span class="muted" style="font-weight:400">× ${q} muebles · ${parteDe(mo)==='A'?'cubierta y frontal':PARTE[parteDe(mo)].toLowerCase()}</span></td></tr>`;
     for(const ct of mo.cortes){
+      if(!incluye(mo,ct))continue;
       const tp=tipoDe(ct);
       h+=`<tr class="t-${tp}"><td></td><td><span class="tipo ${tp}"><span class="ico ${tp}"></span>${TIPO[tp]}</span></td><td>${esc(ct.parte)}</td>
         <td class="r">${parseFloat(ct.teo)>0?`<span class="teo-fixed">${fmt(ct.teo)}</span>`:'<span class="tag bad">sin teórica</span>'}</td>
@@ -737,7 +779,7 @@ function pdiff(ct){return medida(ct).real||!(parseFloat(ct.teo)>0)?diff(ct):`<bu
 // Resultado, verificación y hoja de corte (se actualiza con cada cambio)
 function renderPreviewOut(){
   const R=lastR||compute(), k=R.kpis, L=progModels();
-  let nt=0,nr=0; L.forEach(mo=>mo.cortes.forEach(ct=>{nt++;if(medida(ct).real)nr++}));
+  let nt=0,nr=0; L.forEach(mo=>mo.cortes.forEach(ct=>{if(!incluye(mo,ct))return;nt++;if(medida(ct).real)nr++}));
   const pend=nt-nr;
   $('prevBadge').textContent=!k.totalPz?'—':(R.largas.length?'⛔':(pend?'⚠'+pend:'✓'));
   if($('tabPrev').hidden)return;
@@ -758,7 +800,7 @@ function renderPreviewOut(){
   if(!k.totalPz){['prevKpis','prevMueb','prevLista','prevPat'].forEach(id=>$(id).innerHTML='');$('prevLista').innerHTML='<div class="empty">Captura cantidades en la pestaña Programa.</div>';return}
   const snap=snapshot(R);
   $('prevKpis').innerHTML=htmlKpis(k,k.tramosStd-k.tramosOpt);
-  $('prevMueb').innerHTML=`<table><thead><tr><th>SKU</th><th>Modelo</th><th class="r">Muebles</th><th class="r">Tramos estándar</th></tr></thead><tbody>${R.muebles.map(x=>`<tr><td class="sku">${esc(x.sku)}</td><td class="modelo">${esc(x.modelo)}</td><td class="r num"><b>${x.cant}</b></td><td class="r num">${fmt(x.cant*x.tramos)}</td></tr>`).join('')}</tbody></table>`;
+  $('prevMueb').innerHTML=`<table><thead><tr><th>SKU</th><th>Modelo</th><th>Cortar</th><th class="r">Muebles</th><th class="r">Tramos estándar</th></tr></thead><tbody>${R.muebles.map(x=>`<tr><td class="sku">${esc(x.sku)}</td><td class="modelo">${esc(x.modelo)}</td><td>${parteTxt(x)}</td><td class="r num"><b>${x.cant}</b></td><td class="r num">${fmt(x.cant*x.tramos)}</td></tr>`).join('')}</tbody></table>`;
   $('prevLista').innerHTML=(k.teoricas.length?`<div class="alert">📐 Medidas teóricas sin rectificar en: ${esc(k.teoricas.join(', '))}.</div>`:'')+htmlLista(R.lista);
   $('prevPat').innerHTML=R.patrones.length?htmlPatrones(snap):'<div class="empty">Sin acomodos.</div>';
 }
@@ -846,7 +888,7 @@ function renderHist(){
   let h='<table class="hist"><thead><tr><th>Folio</th><th>Fecha</th><th>Responsable</th><th>Modelos</th><th class="r">Muebles</th><th class="r">Tramos</th><th class="r">Aprov.</th><th>Estado</th><th class="c">Nube</th><th></th></tr></thead><tbody>';
   for(const p of L){
     const k=p.data?.kpis||{};
-    const mods=(p.data?.muebles||[]).map(x=>`${x.cant}× ${x.modelo}`).join(', ');
+    const mods=(p.data?.muebles||[]).map(x=>`${x.cant}× ${x.modelo}${x.parte&&x.parte!=='A'?' ('+(x.parte==='C'?'cub.':'front.')+')':''}`).join(', ');
     h+=`<tr data-id="${p.id}" class="${p.id===selId?'sel':''}"><td><b>${esc(p.folio)}</b></td><td class="num">${esc(p.fecha)}</td><td>${esc(p.resp||'—')}</td>
       <td class="muted" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(mods)}">${esc(mods)}</td>
       <td class="r num">${fmt(k.muebles,0)}</td><td class="r num"><b>${fmt(k.tramosOpt,0)}</b></td><td class="r num">${k.tramosOpt?fmt(k.aprov*100,1)+'%':'—'}</td>
@@ -889,7 +931,7 @@ function showDetail(id,silent){
   const d=p.data;
   $('secDet').hidden=false;
   $('detSub').textContent=`${p.folio} · ${p.estado}`;
-  const muebles=`<div class="scroll" style="margin-bottom:12px"><table><thead><tr><th>SKU</th><th>Modelo</th><th class="r">Muebles</th><th class="r">Tramos estándar</th></tr></thead><tbody>${d.muebles.map(x=>`<tr><td class="sku">${esc(x.sku)}</td><td class="modelo">${esc(x.modelo)}</td><td class="r num"><b>${x.cant}</b></td><td class="r num">${fmt(x.cant*x.tramos)}</td></tr>`).join('')}</tbody></table></div>`;
+  const muebles=`<div class="scroll" style="margin-bottom:12px"><table><thead><tr><th>SKU</th><th>Modelo</th><th>Cortar</th><th class="r">Muebles</th><th class="r">Tramos estándar</th></tr></thead><tbody>${d.muebles.map(x=>`<tr><td class="sku">${esc(x.sku)}</td><td class="modelo">${esc(x.modelo)}</td><td>${parteTxt(x)}</td><td class="r num"><b>${x.cant}</b></td><td class="r num">${fmt(x.cant*x.tramos)}</td></tr>`).join('')}</tbody></table></div>`;
   $('detBody').innerHTML=`<div class="printhead">${printHead(p.folio,p.fecha,p.resp,d.cfg)}</div>
     <div class="dethead noprint"><div>Folio<b>${esc(p.folio)}</b></div><div>Fecha<b>${esc(p.fecha)}</b></div><div>Responsable<b>${esc(p.resp||'—')}</b></div><div>Estado<b>${esc(p.estado)}${p.fechaCorte?' · '+esc(p.fechaCorte):''}</b></div><div>Tramo<b>${fmt(d.cfg.barra)} ${U}</b></div></div>
     <div class="btns noprint" style="margin-bottom:12px"><button class="primary" id="detPrint">🖨️ Imprimir</button><button id="detEdit">✏️ Abrir en el programa</button><button id="detDup">📄 Duplicar como nuevo</button></div>
@@ -906,10 +948,10 @@ function openInEditor(id,asNew){
   const p=H.find(x=>x.id===id); if(!p)return;
   if(Object.keys(S.qty).length&&S.editId!==id&&!confirm('Se reemplazarán las cantidades del programa actual. ¿Continuar?'))return;
   // Reconstruye las cantidades por SKU + modelo contra el catálogo vigente
-  S.qty={}; const nf=[];
+  S.qty={}; S.parts={}; const nf=[];
   for(const x of p.data.muebles){
     const mo=S.catalogo.find(mm=>mm.sku===x.sku&&mm.modelo===x.modelo)||S.catalogo.find(mm=>mm.sku===x.sku);
-    if(mo)S.qty[mo.id]=x.cant;else nf.push(x.modelo);
+    if(mo){S.qty[mo.id]=x.cant;if(x.parte&&x.parte!=='A')S.parts[mo.id]=x.parte}else nf.push(x.modelo);
   }
   S.cfg={...S.cfg,...p.data.cfg,folio:asNew?'':p.folio,fecha:asNew?today():p.fecha,resp:p.resp};
   S.editId=asNew?null:p.id;
@@ -994,9 +1036,10 @@ async function refresh(){
       if(changed){
         // Conserva las cantidades capturadas aunque cambien los IDs de los modelos
         const key=mo=>mo.sku+'|'+mo.modelo, oldQ={};
-        S.catalogo.forEach(mo=>{if(S.qty[mo.id])oldQ[key(mo)]=S.qty[mo.id]});
-        S.catalogo=r.catalogo; const nq={};
-        S.catalogo.forEach(mo=>{const v=S.qty[mo.id]||oldQ[key(mo)];if(v)nq[mo.id]=v}); S.qty=nq;
+        const oldP={};
+        S.catalogo.forEach(mo=>{if(S.qty[mo.id])oldQ[key(mo)]=S.qty[mo.id];if(S.parts[mo.id])oldP[key(mo)]=S.parts[mo.id]});
+        S.catalogo=r.catalogo; const nq={},np={};
+        S.catalogo.forEach(mo=>{const v=S.qty[mo.id]||oldQ[key(mo)];if(v)nq[mo.id]=v;const pp=S.parts[mo.id]||oldP[key(mo)];if(pp)np[mo.id]=pp}); S.qty=nq;S.parts=np;
         saveDraft();if(!document.activeElement||!document.activeElement.closest('#cat')){renderCat()}renderProg();renderResults()}
     } else if((!r.catalogo||!r.catalogo.length)||dirty){ schedulePushCatalog(); }
     // --- programas ---
